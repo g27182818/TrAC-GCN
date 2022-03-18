@@ -132,9 +132,9 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=Fa
 
     Returns
     -------
-    edge_indices: Tensor
+    edge_indices: torch.Tensor
         2D pytorch array that defines the edges between nodes of the graph.
-    edge_attributes: Tensor
+    edge_attributes: torch.Tensor
         Weights associated to the previously defined edges.
     """
     # Define dir, graph and info names
@@ -186,7 +186,6 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=Fa
 
     return edge_indices, edge_attributes
 
-# TODO: Complete documentation of load_dataset()
 def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05, force_compute=False):
     """
     This function loads a the complete Shokhirev dataset (DOI: 10.1111/acel.13280) for transcriptomic age regression

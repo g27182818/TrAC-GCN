@@ -17,8 +17,7 @@ def train(train_loader, model, device, criterion, optimizer, adversarial=False, 
     :param model: (torch.nn.Module) The prediction model.
     :param device: (torch.device) The CUDA or CPU device to parallelize.
     :param criterion: (torch.nn loss function) Loss function to optimize (For this task CrossEntropy is used).
-    :param optimizer: (torch.optim.Optimizer) The model optimizer to minimize the loss function (For this task Adam is
-                       used)
+    :param optimizer: (torch.optim.Optimizer) The model optimizer to minimize the loss function.
     :param adversarial: (bool) Parameter indicating to perform an adversarial attack (Default = False).
     :param attack: The adversarial attack function (Default = None).
     :param kwargs: Keyword arguments of the attack function
@@ -64,27 +63,37 @@ def train(train_loader, model, device, criterion, optimizer, adversarial=False, 
     return mean_loss
 
 
-def test(loader, model, device, metric, optimizer=None, adversarial=False, attack=None, num_classes=34, criterion=None, **kwargs):
+def test(loader, model, device, optimizer=None, adversarial=False, attack=None, criterion=None, **kwargs):
     """
-    This function calculates mean average precision, mean accuracy, total accuracy and the confusion
-    matrix for any classification/detection problem that consists of graph input data. This function can also test an
-    adversarial attack on the inputs.
-    :param loader: (torch.utils.data.DataLoader) Pytorch dataloader containing data to test.
-    :param model: (torch.nn.Module) The prediction model.
-    :param device: (torch.device) The CUDA or CPU device to parallelize.
-    :param metric: (str) The metric to avaluate the performance can be 'acc', 'mAP' or 'both'.
-    :param optimizer: (torch.optim.Optimizer) The model optimizer to delete gradients after the adversarial attack (For
-                      this task Adam is used).
-    :param adversarial: (bool) Parameter indicating to perform an adversarial attack during test (Default = False).
-    :param attack: The adversarial attack function (Default = None).
-    :param num_classes: (int) Number of classes of the classification problem (Default = 34).
-    :param criterion: (torch.nn loss function) Loss function to optimize the adversarial attack in case
-                      adversarial==True (For this task CrossEntropy is used) (Default=None).
-    :param **kwargs: Keyword arguments of the attack function.
-    :return: metric_result: Dictionary containing the metric results depending in the metric type:
-                            'acc'  returns: mean_acc, tot_acc, conf_matrix
-                            'mAP'  returns: mean_AP, AP_list
-                            'both' returns: mean_acc, tot_acc, conf_matrix, mean_AP, AP_list
+    This function calculates MAE (Mean Absolute Error), RMSE (Root Mean Square Error) and R^2 (Determination coefficient) 
+    for any regression problem that consists of graph input data. This function can also test an adversarial attack on
+    the inputs.
+
+    Parameters
+    ----------
+    loader : torch.utils.data.DataLoader
+        Pytorch dataloader containing data to test.
+    model : torch.nn.Module
+        The prediction model.
+    device : torch.device
+        The CUDA or CPU device to parallelize.
+    optimizer : torch.optim.Optimizer, optional
+        The model optimizer to delete gradients after the adversarial attack, by default None.
+    adversarial : bool, optional
+        Whether to perform an adversarial attack during test, by default False.
+    attack : _type_, optional
+        The adversarial attack function, by default None.
+    criterion : _type_, optional
+        Loss function to optimize the adversarial attack in case adversarial==True, by default None.
+    **kwargs: _type_, optional
+        Keyword arguments of the attack function. 
+    Returns
+    -------
+    metric_result: Dict
+        Dictionary containing the metric results:
+                            metric_result['MAE']: Mean Absolute error of the data in loader evaluationg with model.
+                            metric_result['RMSE']: Root mean square error of the data in loader evaluationg with model.
+                            metric_result['R^2']: Coefficient of determination R^2 of the data in loader evaluationg with model.
     """
     # Put model in evaluation mode
     model.eval()
@@ -92,7 +101,7 @@ def test(loader, model, device, metric, optimizer=None, adversarial=False, attac
     # Global true tensor
     glob_true = np.array([])
     # Global probability tensor
-    glob_prob = np.array([])
+    glob_pred = np.array([])
 
     count = 1
     # Computing loop
@@ -113,86 +122,21 @@ def test(loader, model, device, metric, optimizer=None, adversarial=False, attac
                 optimizer.zero_grad()
                 input_x = input_x+delta
 
-            # Get the model output
-            out = model(input_x, data.edge_index.to(device), data.batch.to(device))
-            # Get probabilities
-            prob = out.softmax(dim=1).cpu().detach().numpy()  # Finds probability for all cases
+            # Get the model predictions
+            pred = model(input_x, data.edge_index.to(device), data.batch.to(device)).cpu().detach().numpy()
             true = input_y.cpu().numpy()
             # Stack cases with previous ones
-            glob_prob = np.vstack([glob_prob, prob]) if glob_prob.size else prob
+            glob_pred = np.vstack([glob_pred, pred]) if glob_pred.size else pred
             glob_true = np.hstack((glob_true, true)) if glob_true.size else true
             # Update counter
             count += 1
 
-    # Results dictionary declaration
-    metric_result = {}
-    # Handle the different metrics
-    if (metric == 'acc') or (metric == 'both'):
-        # Get predictions
-        pred = glob_prob.argmax(axis=1)
-        conf_matrix = sklearn.metrics.confusion_matrix(glob_true, pred, labels=np.arange(num_classes))
-        # Normalize confusion matrix by row
-        row_norm_conf_matrix = conf_matrix / np.sum(conf_matrix, axis=1, keepdims=True)
-        # Compute mean recall
-        mean_acc = np.mean(np.diag(row_norm_conf_matrix))
-        # Whole correctly classified cases
-        correct = np.sum(np.diag(conf_matrix))
-        tot_acc = correct / len(loader.dataset)
-
-        # Assign results
-        metric_result["mean_acc"] = mean_acc
-        metric_result["tot_acc"] = tot_acc
-        metric_result["conf_matrix"] = conf_matrix
-
-    if (metric == 'mAP') or (metric == 'both'):
-        # Get binary GT matrix
-        binary_gt = sklearn.preprocessing.label_binarize(glob_true, classes=np.arange(num_classes))
-        AP_list = sklearn.metrics.average_precision_score(binary_gt, glob_prob, average=None)
-        mean_AP = np.mean(AP_list)
-
-        # Assign results
-        metric_result["mean_AP"] = mean_AP
-        metric_result["AP_list"] = AP_list
-
-    if not ((metric == 'mAP') or (metric == 'both') or (metric == 'mAP')):
-        raise NotImplementedError
-
+    # Results dictionary declaration and metrics computation
+    metric_result = {'MAE' : sklearn.metrics.mean_absolute_error(glob_true, glob_pred),
+                     'RMSE': sklearn.metrics.mean_squared_error(glob_true, glob_pred, squared=False),
+                     'R^2' : sklearn.metrics.r2_score(glob_true, glob_pred)}
     return metric_result
 
-
-def pgd_linf(model, X, y, edge_index, batch, criterion, epsilon=0.01, alpha=0.001, num_iter=20, randomize=False):
-    """
-    Construct PGD adversarial examples in L_inf ball over the examples X (IMPORTANT: It returns the perturbation
-    (i.e. delta))
-    :param model: (torch.nn.Module) Classification model to construct the adversarial attack.
-    :param X: (torch.Tensor) The model inputs. Node features.
-    :param y: (torch.Tensor) Groundtruth classification of X.
-    :param edge_index: (torch.Tensor) Node conections of the input graph expected by the model. They come in the form of
-                        an adjacency list.
-    :param batch: (torch.Tensor) The batch vector specifying node correspondence to each complete graph on the batch.
-    :param criterion: (torch.optim.Optimizer) Loss function to optimize the adversarial attack (For this task
-                       CrossEntropy is used).
-    :param epsilon: (float) Radius of the L_inf ball to compute the perturbation (Default = 0.01).
-    :param alpha: (float) Learning rate of the adversarial gradient optimization (Default = 0.001).
-    :param num_iter: (int) Number of gradient iterations to obtain the adversarial example (Default = 20).
-    :param randomize: (bool) Parameter indicating to randomize the initial value of delta (Default = False).
-    :return: delta: (torch.Tensor) The optimized perturbation to the input X. This perturbarion is returned for the
-                    complete batch.
-    """
-    # Handle starting point randomization
-    if randomize:
-        delta = torch.rand_like(X, requires_grad=True)
-        delta.data = delta.data * 2 * epsilon - epsilon
-    else:
-        delta = torch.zeros_like(X, requires_grad=True)
-
-    # Optimization cycle of delta
-    for t in range(num_iter):
-        loss = criterion(model(X + delta, edge_index, batch), y)
-        loss.backward()
-        delta.data = (delta + alpha * delta.grad.detach().sign()).clamp(-epsilon, epsilon)
-        delta.grad.zero_()
-    return delta.detach()
 
 def apgd_graph(model, x, y, edge_index, batch, criterion, epsilon=0.01, **kwargs):
     """
@@ -222,88 +166,71 @@ def apgd_graph(model, x, y, edge_index, batch, criterion, epsilon=0.01, **kwargs
     delta = torch.reshape(delta, (-1, 1))
     return delta.detach()
 
-def plot_training(metric, train_list, test_list, adversarial_test_list, loss, save_path):
+def plot_training(train_list, val_list, adversarial_val_list, loss, save_path):
+    # TODO: Update docstring of plot_training() function
     """
     This function plots a 2X1 figure. The left figure has the training performance in train, test, and adversarial test
-    measured by mACC, mAP of both. The rigth figure has the evolution of the mean training loss over the epochs.
+    measured by mACC, mAP or both. The rigth figure has the evolution of the mean training loss over the epochs.
     :param metric: (str) The metric to avaluate the performance can be 'acc', 'mAP' or 'both'.
     :param train_list: (dict list) List containing the train metric dictionaries acording to the test() function. One
                         value per epoch.
-    :param test_list: (dict list) List containing the test metric dictionaries acording to the test() function. One
+    :param val_list: (dict list) List containing the validation metric dictionaries acording to the test() function. One
                         value per epoch.
-    :param adversarial_test_list: (dict list) List containing the adversarial test metric dictionaries acording to the
+    :param adversarial_val_list: (dict list) List containing the adversarial test metric dictionaries acording to the
                                   test() function. One value per epoch.
     :param loss: (list) Training loss value list. One value per epoch.
     :param save_path: (str) The path to save the figure.
     """
+    # Number of training epochs
     total_epochs = len(loss)
 
-    if metric == 'acc':
-        data_train = [metric_dict["mean_acc"] for metric_dict in train_list]
-        data_test = [metric_dict["mean_acc"] for metric_dict in test_list]
-        data_adv_test = [metric_dict["mean_acc"] for metric_dict in adversarial_test_list]
-        y_label = "Mean Accuracy"
-        legends = ["Train", "Test", "Adv. Test"]
-
-    if metric == 'mAP':
-        data_train = [metric_dict["mean_AP"] for metric_dict in train_list]
-        data_test = [metric_dict["mean_AP"] for metric_dict in test_list]
-        data_adv_test = [metric_dict["mean_AP"] for metric_dict in adversarial_test_list]
-        y_label = "Mean AP"
-        legends = ["Train", "Test", "Adv. Test"]
-
-    if metric == 'both':
-        # Extract mAP data
-        data_train_mAP = [metric_dict["mean_AP"] for metric_dict in train_list]
-        data_test_mAP = [metric_dict["mean_AP"] for metric_dict in test_list]
-        data_adv_test_mAP = [metric_dict["mean_AP"] for metric_dict in adversarial_test_list]
-        # Extract acc data
-        data_train_acc = [metric_dict["mean_acc"] for metric_dict in train_list]
-        data_test_acc = [metric_dict["mean_acc"] for metric_dict in test_list]
-        data_adv_test_acc = [metric_dict["mean_acc"] for metric_dict in adversarial_test_list]
-        # Join data
-        data_train = [data_train_acc, data_train_mAP]
-        data_test = [data_test_acc, data_test_mAP]
-        data_adv_test = [data_adv_test_acc, data_adv_test_mAP]
-        y_label = "Mean AP / Mean Accuracy"
-        legends = ["Train mACC", "Train mAP", "Test mACC", "Test mAP", "Adv. Test mACC", "Adv. Test mAP"]
-
-    if not ((metric == 'mAP') or (metric == 'both') or (metric == 'mAP')):
-        raise NotImplementedError
+    # The order of plot_data is:
+    # Index 0: 3 metrics (MAE, RMSE, R^2)
+    # Index 1: len(train_list) epochs
+    # Index 2: 2 evaluation groups (Train, Val, adversarial val) 
+    plot_data = np.zeros((3, len(train_list), 3))
+    metric_names = ['MAE', 'RMSE', 'R^2']
+    # plot_data assignation from dictionaries
+    for i in range(total_epochs):
+        for j in range(len(metric_names)):
+            plot_data[j, i, 0] = train_list[i][metric_names[j]]
+            plot_data[j, i, 1] = val_list[i][metric_names[j]]
+            plot_data[j, i, 2] = adversarial_val_list[i][metric_names[j]]
+    # Legends of plots
+    legends = ['Train', 'Adv. Val', 'Val']
     
+    # TODO: Optimize vectorized version of plots and order of gloups to ger non overlaping lines
     # Generate performance plot
-    plt.figure(figsize=(20, 7))
-    plt.subplot(1, 2, 1)
-    plt.plot(np.arange(total_epochs), np.array(data_train).transpose(), '-o')
-    plt.plot(np.arange(total_epochs), np.array(data_test).transpose(), '-o')
-    plt.plot(np.arange(total_epochs), np.array(data_adv_test).transpose(), '-o')
-    plt.grid()
-    plt.xlabel("Epochs", fontsize=20)
-    plt.ylabel(y_label, fontsize=20)
-    plt.title("Model performance", fontsize=25)
-    plt.legend(legends)
+    plt.figure(figsize=(30, 10))
+    for i in range(3):
+        plt.subplot(1, 3, i+1)
+        plt.plot(np.arange(total_epochs), plot_data[i,:,0], '-o')
+        plt.plot(np.arange(total_epochs), plot_data[i,:,2], '-o')
+        plt.plot(np.arange(total_epochs), plot_data[i,:,1], '-o')
+        plt.grid()
+        plt.xlabel("Epochs", fontsize=20)
+        plt.ylabel(metric_names[i], fontsize=20)
+        plt.title("Model performance with\n"+metric_names[i], fontsize=25)
+        plt.legend(legends)
 
-    plt.subplot(1, 2, 2)
-    plt.plot(np.arange(total_epochs), np.array(loss), '-o')
-    plt.grid()
-    plt.xlabel("Epochs", fontsize=20)
-    plt.ylabel("Loss", fontsize=20)
-    plt.title("Model Loss", fontsize=25)
-
+    plt.tight_layout()
     plt.savefig(save_path, dpi=200)
 
-def print_epoch(train_dict, test_dict, adv_test_dict, loss, epoch, path):
+    
+
+def print_epoch(train_dict, val_dict, adv_val_dict, loss, epoch, path):
+    # TODO: Update docstring of print_epoch() function
     """
     This function prints in terminal a table with all available metrics in all test groups (train, test, adversarial
-    test) for an specific epoch. It also write this table to the training log specified in path.
+    test) for an specific epoch. It also writes this table to the training log specified in path.
     :param train_dict: (Dict) Dictionary containing the train set metrics acording to the test() function.
-    :param test_dict: (Dict) Dictionary containing the test set metrics acording to the test() function.
-    :param adv_test_dict: (Dict) Dictionary containing the adversarial test set metrics acording to the test() function.
+    :param val_dict: (Dict) Dictionary containing the test set metrics acording to the test() function.
+    :param adv_val_dict: (Dict) Dictionary containing the adversarial test set metrics acording to the test() function.
     :param loss: (float) Mean epoch loss value.
     :param epoch: (int) Epoch number.
     :param path: (str) Training log path.
     """
-    rows = ["Train", "Test", "Adv_test"]
+    rows = ["Train", "Val", "Adv. Val"]
     data = np.zeros((3, 1))
     headers = []
     counter = 0
@@ -311,7 +238,7 @@ def print_epoch(train_dict, test_dict, adv_test_dict, loss, epoch, path):
     # Construccion of the metrics table
     for k in train_dict.keys():
         # Handle metrics that cannot be printed
-        if (k == "conf_matrix") or (k == "AP_list") or (k == "epoch"):
+        if (k == "epoch"):
             continue
         headers.append(k)
 
@@ -319,219 +246,23 @@ def print_epoch(train_dict, test_dict, adv_test_dict, loss, epoch, path):
             data = np.hstack((data, np.zeros((3, 1))))
 
         data[0, counter] = train_dict[k]
-        data[1, counter] = test_dict[k]
-        data[2, counter] = adv_test_dict[k]
+        data[1, counter] = val_dict[k]
+        data[2, counter] = adv_val_dict[k]
         counter += 1
 
-    # Print metrics to console
-    print('-----------------------------------------')
-    print('                                         ')
-    print("Epoch "+str(epoch+1)+":")
-    print("Loss = " + str(loss.cpu().detach().numpy()))
-    print('                                         ')
+    # Declare dataframe to print
     data_frame = pd.DataFrame(data, index=rows, columns=headers)
-    print(data_frame)
-    print('                                         ')
-    # Save metrics to a training log
+
+    # Print metrics to a log and terminal
     with open(path, 'a') as f:
-        print('-----------------------------------------', file=f)
-        print('                                         ', file=f)
-        print("Epoch " + str(epoch + 1) + ":", file=f)
-        print("Loss = " + str(loss.cpu().detach().numpy()), file=f)
-        print('                                         ', file=f)
-        print(data_frame, file=f)
-        print('                                         ', file=f)
+        print_both('-----------------------------------------',f)
+        print_both('                                         ',f)
+        print_both("Epoch " + str(epoch + 1) + ":",f)
+        print_both("Loss = " + str(loss.cpu().detach().numpy()),f)
+        print_both('                                         ',f)
+        print_both(data_frame,f)
+        print_both('                                         ',f)
 
-
-def plot_conf_matrix(train_conf_mat, test_conf_mat, adv_test_conf_mat, save_path):
-    """
-    Plots a heatmap for all the important confusion matrices (train, test and adversarial test). All matrices enter as a
-    numpy array.
-    :param train_conf_mat: (numpy array) Training confusion matrix.
-    :param test_conf_mat: (numpy array) Test confusion matrix.
-    :param adv_test_conf_mat: (numpy array) Adversarial test confusion matrix.
-    :param save_path: (str) General path of the experiment results folder.
-    """
-    if train_conf_mat.shape[0]==34:
-        # Define classes
-        classes = ["NT", "ACC", "BLCA", "BRCA", "CESC",
-               "CHOL", "COAD", "DLBC", "ESCA", "GBM",
-               "HNSC", "KICH", "KIRC", "KIRP", "LAML",
-               "LGG", "LIHC", "LUAD", "LUSC", "MESO",
-               "OV", "PAAD", "PCPG", "PRAD", "READ",
-               "SARC", "SKCM", "STAD", "TGCT", "THCA",
-               "THYM", "UCEC", "UCS", "UVM"]
-    elif train_conf_mat.shape[0]==63:
-        classes = ["ACC", "BLCA", "BRCA", "CESC",
-                "CHOL", "COAD", "DLBC", "ESCA", "GBM",
-                "HNSC", "KICH", "KIRC", "KIRP", "LAML",
-                "LGG", "LIHC", "LUAD", "LUSC", "MESO",
-                "OV", "PAAD", "PCPG", "PRAD", "READ",
-                "SARC", "SKCM", "STAD", "TGCT", "THCA",
-                "THYM", "UCEC", "UCS", "UVM",'Adipose Tissue', 
-                'Adrenal Gland', 'Bladder', 'Blood', 'Blood Vessel', 
-                'Brain', 'Breast', 'Cervix Uteri', 'Colon', 
-                'Esophagus', 'Fallopian Tube', 'Heart', 'Kidney', 
-                'Liver', 'Lung', 'Muscle', 'Nerve', 'Ovary', 
-                'Pancreas', 'Pituitary', 'Prostate', 'Salivary Gland', 
-                'Skin', 'Small Intestine', 'Spleen', 'Stomach', 
-                'Testis', 'Thyroid', 'Uterus', 'Vagina']
-    elif train_conf_mat.shape[0]==64:
-        classes = ["TCGA NT","ACC", "BLCA", "BRCA", "CESC",
-                "CHOL", "COAD", "DLBC", "ESCA", "GBM",
-                "HNSC", "KICH", "KIRC", "KIRP", "LAML",
-                "LGG", "LIHC", "LUAD", "LUSC", "MESO",
-                "OV", "PAAD", "PCPG", "PRAD", "READ",
-                "SARC", "SKCM", "STAD", "TGCT", "THCA",
-                "THYM", "UCEC", "UCS", "UVM",'Adipose Tissue', 
-                'Adrenal Gland', 'Bladder', 'Blood', 'Blood Vessel', 
-                'Brain', 'Breast', 'Cervix Uteri', 'Colon', 
-                'Esophagus', 'Fallopian Tube', 'Heart', 'Kidney', 
-                'Liver', 'Lung', 'Muscle', 'Nerve', 'Ovary', 
-                'Pancreas', 'Pituitary', 'Prostate', 'Salivary Gland', 
-                'Skin', 'Small Intestine', 'Spleen', 'Stomach', 
-                'Testis', 'Thyroid', 'Uterus', 'Vagina']
-
-    # Define dataframes
-    df_train = pd.DataFrame(train_conf_mat, classes, classes)
-    df_test = pd.DataFrame(test_conf_mat, classes, classes)
-    df_adv_test = pd.DataFrame(adv_test_conf_mat, classes, classes)
-
-    # Plot params
-    scale = 1.5
-    fig_size = (50, 30)
-    tit_size = 40
-    lab_size = 30
-    cm_str = 'Purples'
-
-    # Plot confusion matrix for train
-    plt.figure(figsize=fig_size)
-    sn.set(font_scale=scale)
-    ax = sn.heatmap(df_train, annot=True, linewidths=.5, fmt='g', cmap=plt.get_cmap(cm_str),
-                    linecolor='k', norm=colors.LogNorm(vmin=0.1, vmax=1000))
-    plt.title("Train \nConfusion matrix", fontsize=tit_size)
-    plt.yticks(rotation=0)
-    plt.xticks(rotation=90)
-    ax.tick_params(labelsize=lab_size)
-    plt.xlabel("Predicted", fontsize=tit_size)
-    plt.ylabel("Groundtruth", fontsize=tit_size)
-    cbar = ax.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=lab_size)
-    plt.tight_layout()
-    plt.savefig(save_path+"_train.png", dpi=200)
-    plt.close()
-
-    # Plot confusion matrix for test
-    plt.figure(figsize=fig_size)
-    sn.set(font_scale=scale)
-    ax = sn.heatmap(df_test, annot=True, linewidths=.5, fmt='g', cmap=plt.get_cmap(cm_str),
-                    linecolor='k', norm=colors.LogNorm(vmin=0.1, vmax=1000))
-    plt.title("Test \nConfusion matrix", fontsize=tit_size)
-    plt.yticks(rotation=0)
-    plt.xticks(rotation=90)
-    ax.tick_params(labelsize=lab_size)
-    plt.xlabel("Predicted", fontsize=tit_size)
-    plt.ylabel("Groundtruth", fontsize=tit_size)
-    cbar = ax.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=lab_size)
-    plt.tight_layout()
-    plt.savefig(save_path + "_test.png", dpi=200)
-    plt.close()
-
-    # Plot confusion matrix for adversarial test
-    plt.figure(figsize=fig_size)
-    sn.set(font_scale=scale)
-    ax = sn.heatmap(df_adv_test, annot=True, linewidths=.5, fmt='g', cmap=plt.get_cmap(cm_str),
-                    linecolor='k', norm=colors.LogNorm(vmin=0.1, vmax=1000))
-    plt.title("Adversarial test \nConfusion matrix", fontsize=tit_size)
-    plt.yticks(rotation=0)
-    plt.xticks(rotation=90)
-    ax.tick_params(labelsize=lab_size)
-    plt.xlabel("Predicted", fontsize=tit_size)
-    plt.ylabel("Groundtruth", fontsize=tit_size)
-    cbar = ax.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=lab_size)
-    plt.tight_layout()
-    plt.savefig(save_path + "_adv_test.png", dpi=200)
-    plt.close()
-
-
-def demo(loader, model, device, num_test):
-    """
-    Funtion to make a demo of the methods results. It saves a "demo_num_test.png" plot with a graphic visualization of
-    the input vector, its classification by the model, the probability of the classification and the groundtruth.
-    :param loader: (torch.utils.data.DataLoader) Pytorch demo dataloader with batch size equals to one.
-    :param model: (torch.nn.Module) Loaded prediction model from "best_model.pt" file.
-    :param device: (torch.device) The CUDA or CPU device to perform prediction.
-    :param num_test: (int) Number of the test sample to see on the demo.
-    """
-
-    class2anot_dict = {"ACC":   1, "BLCA":  2, "BRCA":  3, "CESC":  4, "CHOL":  5,
-                       "COAD":  6, "DLBC":  7, "ESCA":  8, "GBM":   9, "HNSC": 10,
-                       "KICH": 11, "KIRC": 12, "KIRP": 13, "LAML": 14, "LGG":  15,
-                       "LIHC": 16, "LUAD": 17, "LUSC": 18, "MESO": 19, "OV":   20,
-                       "PAAD": 21, "PCPG": 22, "PRAD": 23, "READ": 24, "SARC": 25,
-                       "SKCM": 26, "STAD": 27, "TGCT": 28, "THCA": 29, "THYM": 30,
-                       "UCEC": 31, "UCS":  32, "UVM":  33}
-
-    annot2class_dict = {y: x for x, y in class2anot_dict.items()}
-    annot2class_dict[0] = "NT"
-
-    model.eval()
-    count = 0
-    for data in loader:
-        if count < num_test:
-            count += 1
-            continue
-        else:
-            input_x, input_y = data.x.to(device), data.y.to(device)
-            out = model(input_x, data.edge_index.to(device), data.batch.to(device))
-            prob = out.softmax(dim=1).cpu().detach()
-            pred_label = torch.argmax(prob).cpu().numpy()
-            true = input_y.cpu().numpy()
-            x_vector = input_x.cpu().detach().numpy()
-            x_vector_padded = np.append(x_vector, np.zeros(85*85 - 7169))
-            x_matrix = np.reshape(x_vector_padded, (85, -1))
-            plt.figure()
-            plt.title("Gene expression vector " + str(num_test) + " of testset\n"
-                      + "Predicted Class: " + annot2class_dict[int(pred_label)]
-                      + " Probability: " + str(round(prob[0, int(pred_label)].item(), 3)) + "\n"
-                      + "Ground-truth: " + annot2class_dict[int(true)])
-            plt.imshow(x_matrix, cmap='inferno', vmin=0, vmax=1)
-            plt.axis('off')
-            plt.colorbar()
-            plt.tight_layout()
-            save_path = "demo_" + str(num_test) + ".png"
-            plt.savefig(save_path, dpi=200)
-            break
-
-
-def fpkm2tpm(x, log2 = True, pre_log2 = True):
-    """This function takes an input matrix with rows being patients and columns being genes and returns
-    a transformed matrix with the same shape but with expression values transformed to TPM normalization.
-    The normalized expression vaues in the input matrix are in FPKM nomralization. 
-
-    Args:
-        x (np.array): Input matrix in FPKM normalization. Rows are samples and columns are genes.
-        log2 (bool, optional): Whether to perform a log2 transform after transforming to TPM. Defaults to True.
-        pre_log2 (bool, optional): True if input martix is log2 transformed. Defaults to True.
-
-    Returns:
-        x_t (np.array): Transformed version of input matrix x.
-    """
-
-    if pre_log2:
-        # Reverse log2 transform
-        x = np.exp2(x)-1
-    
-    # Put x in TPM normalization
-    x_t = 1e6 * x/np.sum(x, axis=0, keepdims=True)
-
-    if log2:
-        # Perform log2 normalization on x
-        x_t = np.log2(x_t+1)
-
-    return x_t
 
 
 def read_csv_pgbar(csv_path, chunksize, usecols, dtype=object):
