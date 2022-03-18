@@ -6,3 +6,4 @@ BASELINE/images/
 BASELINE/age_histogram.png
 data/
 __pycache__/
+graphs/

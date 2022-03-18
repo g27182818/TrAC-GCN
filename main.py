@@ -30,5 +30,5 @@ args = parser.parse_args()
 data_name = args.norm + "_log2" if args.log2 else args.norm
 
 # Load data
-x_np, y_np = load_shokhirev(args.norm, args.log2)
+dataset_info = load_dataset('TPM', log2=True, force_compute=False)
 

@@ -548,3 +548,17 @@ def read_csv_pgbar(csv_path, chunksize, usecols, dtype=object):
  
     df = pd.concat((f for f in chunk_list), axis=0)
     print('Finish reading csv file')
+
+def print_both(p_string, f):
+    """
+    This function prints p_string in terminal and to a .txt file with handle f 
+
+    Parameters
+    ----------
+    p_string : str
+        String to be printed.
+    f : file
+        Txt file handle indicating where to print. 
+    """
+    print(p_string)
+    f.write(p_string + '\n')
