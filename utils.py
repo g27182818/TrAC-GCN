@@ -126,11 +126,10 @@ def test(loader, model, device, optimizer=None, adversarial=False, attack=None, 
             pred = model(input_x, data.edge_index.to(device), data.batch.to(device)).cpu().detach().numpy()
             true = input_y.cpu().numpy()
             # Stack cases with previous ones
-            glob_pred = np.vstack([glob_pred, pred]) if glob_pred.size else pred
+            glob_pred = np.hstack([glob_pred, pred]) if glob_pred.size else pred
             glob_true = np.hstack((glob_true, true)) if glob_true.size else true
             # Update counter
             count += 1
-
     # Results dictionary declaration and metrics computation
     metric_result = {'MAE' : sklearn.metrics.mean_absolute_error(glob_true, glob_pred),
                      'RMSE': sklearn.metrics.mean_squared_error(glob_true, glob_pred, squared=False),
@@ -260,7 +259,8 @@ def print_epoch(train_dict, val_dict, adv_val_dict, loss, epoch, path):
         print_both("Epoch " + str(epoch + 1) + ":",f)
         print_both("Loss = " + str(loss.cpu().detach().numpy()),f)
         print_both('                                         ',f)
-        print_both(data_frame,f)
+        print(data_frame)
+        print(data_frame, file=f)
         print_both('                                         ',f)
 
 

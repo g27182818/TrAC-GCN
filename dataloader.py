@@ -96,10 +96,10 @@ def split_data(x, y, val_frac = 0.2, test_frac = 0.2):
     num_test = int(n*test_frac)
     # Declare dictionary
     data_dict = {'x_train': x[0:n-num_val-num_test, :],
-                 'x_val':   x[num_val:n-num_test, :],
+                 'x_val':   x[n-num_val-num_test:n-num_test, :],
                  'x_test':  x[n-num_test:, :],
                  'y_train': y[0:n-num_val-num_test],
-                 'y_val':   y[num_val:n-num_test],
+                 'y_val':   y[n-num_val-num_test:n-num_test],
                  'y_test':  y[n-num_test:]}
     return data_dict
 
@@ -180,7 +180,7 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=Fa
         with open(name_info, 'w') as f:
             print_both('Total amount of nodes: ' + str(x.shape[1]), f)
             print_both('Total amount of edges: ' + str(edge_attributes.shape[0]), f)
-            print_both('Average graph degree: ' + str(round(edge_attributes.shape[0]/x.shape[1], 3)), f)
+            print_both('Average graph degree: ' + str(round(2*edge_attributes.shape[0]/x.shape[1], 3)), f)
             print_both('Is the graph connected: ' + str(connected_bool), f)
             print_both('List of connected componnents size: ' + str(sorted(length_connected, reverse=True)), f)
 
