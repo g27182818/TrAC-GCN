@@ -213,7 +213,7 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
     -------
     dataset_info : dict
         Dictionary containing all the important data from the training setup with the following keys:
-            dataset_info['split']: Dictionary containning dataset partitions for both samples and annotations
+            dataset_info['split']: Dictionary containning dataset partitions for both samples and annotations.
                                    It is in the format specified by the split_data() function.
             dataset_info['graph']: Tuple containing (edge_indices, edge_attributes) that define the correlation
                                    graph defined by the parameters in the training set. 

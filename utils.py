@@ -198,24 +198,69 @@ def plot_training(train_list, val_list, adversarial_val_list, loss, save_path):
     # Legends of plots
     legends = ['Train', 'Adv. Val', 'Val']
     
+    # Impose mathematical notation for metrics title
+    metric_names = ["MAE", "RMSE", "$R^2$"]
+
     # TODO: Optimize vectorized version of plots and order of gloups to ger non overlaping lines
     # Generate performance plot
-    plt.figure(figsize=(30, 10))
+    plt.figure(figsize=(20, 6))
     for i in range(3):
         plt.subplot(1, 3, i+1)
-        plt.plot(np.arange(total_epochs), plot_data[i,:,0], '-o')
-        plt.plot(np.arange(total_epochs), plot_data[i,:,2], '-o')
-        plt.plot(np.arange(total_epochs), plot_data[i,:,1], '-o')
+        plt.plot(np.arange(total_epochs), plot_data[i,:,0], '-ok')
+        plt.plot(np.arange(total_epochs), plot_data[i,:,2], '-ob')
+        plt.plot(np.arange(total_epochs), plot_data[i,:,1], '-or')
         plt.grid()
-        plt.xlabel("Epochs", fontsize=20)
-        plt.ylabel(metric_names[i], fontsize=20)
-        plt.title("Model performance with\n"+metric_names[i], fontsize=25)
-        plt.legend(legends)
-
+        plt.xlabel("Epochs", fontsize=16)
+        plt.ylabel(metric_names[i], fontsize=16)
+        plt.title("Model performance\nwith "+metric_names[i], fontsize=20)
+        plt.legend(legends, fontsize=12)
+        if metric_names[i] == "$R^2$":
+            plt.ylim((0, 1))
     plt.tight_layout()
     plt.savefig(save_path, dpi=200)
 
-    
+
+def plot_predictions(model, device, val_loader, save_path):
+    """
+    This funtion plots the predictions of the model over the val set.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to evaluate.
+    device : torch.device
+        The device to use.
+    val_loader : torch.utils.data.DataLoader
+        Dataset loader for the validation set.
+    save_path : str
+        Path to save the plot.
+    """
+    # Global definition of true and predicted ages.
+    y_true = np.array([])
+    y_pred = np.array([])
+    # Cycle to compute the predictions
+    for data in val_loader:  # Iterate in batches over the val dataset.
+        # Get the inputs of the model (x) and the groundtruth (y)
+        input_x, input_y = data.x.to(device), data.y
+        # Get the model predictions
+        pred = model(input_x, data.edge_index.to(device), data.batch.to(device)).cpu().detach().numpy()
+        true = input_y.numpy()
+        # Stack cases with previous ones
+        y_pred = np.hstack([y_pred, pred]) if y_pred.size else pred
+        y_true = np.hstack((y_true, true)) if y_true.size else true
+    plt.figure(figsize=(20, 6))
+    plt.plot(y_true, y_pred, 'ok')
+    plt.plot(np.arange(0, max(max(y_true), max(y_pred))), np.arange(0, max(max(y_true), max(y_pred))), '-k')
+    plt.ylim((0, max(max(y_true), max(y_pred))))
+    plt.xlim((0, max(max(y_true), max(y_pred))))
+    plt.grid()
+    plt.xlabel("True Age (Years)", fontsize=16)
+    plt.ylabel("Predicted Age (Years)", fontsize=16)
+    plt.title("Model predictions")
+    plt.savefig(save_path, dpi=200)
+
+
+
 
 def print_epoch(train_dict, val_dict, adv_val_dict, loss, epoch, path):
     # TODO: Update docstring of print_epoch() function
