@@ -54,7 +54,7 @@ model_type = "baseline_simple"      # Model type, can be # TODO: Complete model 
 experiment_name = args.exp_name     # Experiment name to define path were results are stored                           #
 loss_fn = args.loss                 # Loss function to be used for training. Can be mse or l1.                         #
 lr = 0.0001                         # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)          #
-total_epochs = 20                    # Total number of epochs to train                                                  #
+total_epochs = 100                  # Total number of epochs to train                                                  #
 train_eps = args.adv_e_train        # Adversarial epsilon for train                                                    #
 n_iters_apgd = args.n_iters_apgd    # Number of performed APGD iterations in train                                     #
 # Test parameters -----------------------------------------------------------------------------------------------------#
@@ -134,6 +134,13 @@ val_metric_lst = []
 adv_val_metric_lst = []
 loss_list = []
 
+# Best metric variables declaration
+best_train_metric = {'MAE': None, 'RMSE': None, 'R^2': None}
+best_val_metric = {'MAE': 1e10, 'RMSE': None, 'R^2': None}
+best_adv_val_metric = {'MAE': None, 'RMSE': None, 'R^2': None}
+
+
+
 
 # Declare results path
 results_path = os.path.join("Results", experiment_name)
@@ -144,7 +151,7 @@ metrics_log_path = os.path.join(results_path, "metric_dicts.pickle")
 # Declare path to save performance training plot
 train_performance_fig_path = os.path.join(results_path, "training_performance.png")
 # Declare path to save val set predictions plot
-val_performance_fig_path = os.path.join(results_path, "val_performance.png")
+val_prediction_fig_path = os.path.join(results_path, "val_prediction.png")
 
 # Create results directory
 if not os.path.isdir(results_path):
@@ -202,14 +209,19 @@ for epoch in range(total_epochs):
     # Print performance
     print_epoch(train_metrics, val_metrics, adv_val_metrics, loss, epoch, train_log_path)
 
-    # Save checkpoints every 2 epochs
-    if (epoch+1) % 2 == 0:
+    # Save model if it is the best so far
+    if val_metrics['MAE'] < best_val_metric['MAE']:
+        # Update best metric variables
+        best_val_metric = val_metrics.copy()
+        best_train_metric = train_metrics.copy()
+        best_adv_val_metric = adv_val_metrics.copy()
+        # Save best model until now
         torch.save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss},
-            os.path.join(results_path, "checkpoint_epoch_"+str(epoch+1)+".pt"))
+            os.path.join(results_path, "best_model.pt"))
 
 # Save metrics dicts
 complete_metric_dict = {"train": train_metric_lst,
@@ -223,5 +235,23 @@ with open(metrics_log_path, 'wb') as f:
 # Generate training performance plot and save it to train_performance_fig_path
 plot_training(train_metric_lst, val_metric_lst, adv_val_metric_lst, loss_list, train_performance_fig_path)
 
-# Generate val performance plot and save it to val_performance_fig_path
-plot_predictions(model, device, val_loader, val_performance_fig_path)
+# Get best model from results_path/best_model.pt
+best_model_dict = torch.load(os.path.join(results_path, "best_model.pt"))
+model.load_state_dict(best_model_dict['model_state_dict'])
+
+# Print best performance on val set to log
+with open(train_log_path, 'a') as f:
+    print_both('-----------------------------------------',f)
+    print_both("Best MAE performance:",f)
+print_epoch(best_train_metric,
+            best_val_metric, 
+            best_adv_val_metric, 
+            best_model_dict['loss'], 
+            best_model_dict['epoch'],
+            train_log_path)
+
+# Generate val predictions plot and save it to val_predictions_fig_path
+plot_predictions(model, device, val_loader, val_prediction_fig_path)
+
+# TODO: Do a 'just_plot' option to just plot the training performance and not train the model
+

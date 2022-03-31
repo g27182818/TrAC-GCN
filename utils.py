@@ -235,6 +235,8 @@ def plot_predictions(model, device, val_loader, save_path):
     save_path : str
         Path to save the plot.
     """
+    # Put model in evaluation mode
+    model.eval()
     # Global definition of true and predicted ages.
     y_true = np.array([])
     y_pred = np.array([])
@@ -248,15 +250,16 @@ def plot_predictions(model, device, val_loader, save_path):
         # Stack cases with previous ones
         y_pred = np.hstack([y_pred, pred]) if y_pred.size else pred
         y_true = np.hstack((y_true, true)) if y_true.size else true
-    plt.figure(figsize=(20, 6))
+    plt.figure(figsize=(6, 6))
     plt.plot(y_true, y_pred, 'ok')
-    plt.plot(np.arange(0, max(max(y_true), max(y_pred))), np.arange(0, max(max(y_true), max(y_pred))), '-k')
+    plt.plot(np.arange(0, max(max(y_true), max(y_pred))+1), np.arange(0, max(max(y_true), max(y_pred))+1), '-k')
     plt.ylim((0, max(max(y_true), max(y_pred))))
     plt.xlim((0, max(max(y_true), max(y_pred))))
     plt.grid()
-    plt.xlabel("True Age (Years)", fontsize=16)
-    plt.ylabel("Predicted Age (Years)", fontsize=16)
-    plt.title("Model predictions")
+    plt.xlabel("True Age (Yr)", fontsize=16)
+    plt.ylabel("Predicted Age (Yr)", fontsize=16)
+    plt.title("Model predictions", fontsize=20)
+    plt.tight_layout()
     plt.savefig(save_path, dpi=200)
 
 
