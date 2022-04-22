@@ -62,7 +62,7 @@ model_type = "baseline_simple"          # Model type, can be # TODO: Complete mo
 experiment_name = args.exp_name         # Experiment name to define path were results are stored                           #
 loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                         #
 lr = args.lr                            # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)          #
-total_epochs = 100                      # Total number of epochs to train                                                  #
+total_epochs = 50                      # Total number of epochs to train                                                  #
 train_eps = args.adv_e_train            # Adversarial epsilon for train                                                    #
 n_iters_apgd = args.n_iters_apgd        # Number of performed APGD iterations in train                                     #
 # Test parameters ---------------------------------------------------------------------------------------------------------#
