@@ -11,7 +11,7 @@ from utils import *
 # Set random seed
 np.random.seed(1234)
 
-def read_shokhirev(norm, log2):
+def read_shokhirev(norm, log2, ComBat = False, ComBat_seq = False):
     """
     This function loads one of 3 csv files of the Shokirev dataset proposed in DOI: 10.1111/acel.13280
     it performs a log2 transform if it is indicated and shuffles the data.
@@ -30,16 +30,32 @@ def read_shokhirev(norm, log2):
     y_np : np.array
         The shuffled vector of patient age.
     """
+    # Handle multiple possible errors
+    # Handle the case where user defines both ComBat and ComBat_seq as True
+    if ComBat and ComBat_seq:
+        raise ValueError('ComBat and ComBat_seq cannot be both True')
+    if ComBat and (not log2):
+        raise ValueError('ComBat requires log2 transform because it was computed over log2(x+1) data')
+
+    # Handle all the cases to assign the correct file name to load
+    if ComBat:
+        dataset_filename = norm+'_dataset_log2_combat.csv'
+    elif ComBat_seq:
+        dataset_filename = norm+'_dataset_combat_seq.csv'
+    else:
+        dataset_filename = norm+'_dataset.csv'
+
     # Declare expression data path 
-    expression_path = os.path.join("data","Shokhirev_2020","normalized", norm+'_dataset.csv')
-    # Read expression file and make minnor modifications
+    expression_path = os.path.join("data","Shokhirev_2020","normalized", dataset_filename)
+    # Read expression file and make minor modifications
     expression = pd.read_csv(expression_path, sep=",", header=0)
     expression = expression.rename(columns = {'Unnamed: 0':'SRR.ID'})
     expression = expression.set_index('SRR.ID')
     expression = expression.T
 
-    # Handle posible log2 transformation
-    if log2:
+    # Handle posible log2 transformation. In case ComBat is True, the expression matrix is already log2
+    # transformed from the loaded file.
+    if log2 and (not ComBat):
         # Perform the log2 transform of data
         expression = np.log2(expression + 1)
 
@@ -103,11 +119,11 @@ def split_data(x, y, val_frac = 0.2, test_frac = 0.2):
                  'y_test':  y[n-num_test:]}
     return data_dict
 
-def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=False):
+def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, ComBat = False, ComBat_seq = False, force_compute=False):
     """
     This function computes and saves the edge indices and edge atributes of the graph asociated with 
     the gene expression matrix x. In this graph if the Spearman correlation (in absolute value) between
-    any two genes is greater than coor_thr with a p_value of less than p_thr, a link with weight 1 is 
+    any two genes is greater than coor_thr with a p_value of less than p_thr, a link of weight 1 is 
     stablished.
 
     If the graph has already been computed, the function loads the information from file.
@@ -126,6 +142,10 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=Fa
         the graph information.
     p_thr : float, optional
         P_value threshold to define the graph edges, by default 0.05.
+    ComBat : bool, optional
+        Indicates if a dataset with ComBat batch correction was loaded, by default False.
+    ComBat_seq : bool, optional
+        Indicates if a dataset with ComBat_seq batch correction was loaded, by default False.
     force_compute : bool, optional
         Forces the computation of a new graph even if there is an already existing file with the corresponding name, 
         by default False.
@@ -138,7 +158,7 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=Fa
         Weights associated to the previously defined edges.
     """
     # Define dir, graph and info names
-    dir = os.path.join('graphs', 'shokhirev', norm, 'log2='+str(log2))
+    dir = os.path.join('graphs', 'shokhirev', norm, 'log2='+str(log2), 'ComBat='+str(ComBat), 'ComBat_seq='+str(ComBat_seq))
     name_graph = os.path.join(dir, 'graph_corr_thr_'+str(corr_thr)+'_p_thr_'+str(p_thr)+'.pkl')
     name_info = os.path.join(dir, 'graph_info_corr_thr_'+str(corr_thr)+'_p_thr_'+str(p_thr)+'.txt')
     
@@ -186,7 +206,8 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, force_compute=Fa
 
     return edge_indices, edge_attributes
 
-def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05, force_compute=False):
+def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05, force_compute=False,
+                 ComBat = False, ComBat_seq = False):
     """
     This function loads a the complete Shokhirev dataset (DOI: 10.1111/acel.13280) for transcriptomic age regression
     It performs data shuffle, splits and defines a graph based on the Spearman correlation between genes.   
@@ -208,6 +229,10 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
     force_compute : bool, optional
         Forces the computation of a new graph even if there is an already existing file with the corresponding name, 
         by default False.
+    ComBat : bool, optional
+        Whether to load ComBat batch corrected dataset, by default False.
+    ComBat_seq : bool, optional
+        Whether to load ComBat_seq batch corrected dataset, by default False.
 
     Returns
     -------
@@ -220,12 +245,13 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
     """
     # Get x_np and y_np from read_shokhirev()
     print('Reading, transforming and splitting data...')
-    x_np, y_np = read_shokhirev(norm, log2)
+    x_np, y_np = read_shokhirev(norm, log2, ComBat, ComBat_seq)
     # Split dataset using split_data()
     split_dict = split_data(x_np, y_np, val_frac = val_frac, test_frac = test_frac)
     # Use Train x_p to compute or load the graph with compute_graph_shokirev()
     edge_indices, edge_attributes = compute_graph_shokirev(split_dict['x_train'], corr_thr= corr_thr,
                                                            norm=norm, log2=log2, p_thr=p_thr,
+                                                           ComBat=ComBat, ComBat_seq=ComBat_seq,
                                                            force_compute=force_compute)
     # Append everything in a single dictionary
     dataset_info = {'split': split_dict,

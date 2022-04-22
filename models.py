@@ -109,8 +109,8 @@ class BaselineModelSimple(torch.nn.Module):
         # Convolution definitions
         self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
-        self.lin1 = Linear(hidden_channels * self.input_size, 256)
-        self.lin2 = Linear(256, out_size)
+        self.lin1 = Linear(hidden_channels * self.input_size, 1000)
+        self.lin2 = Linear(1000, out_size)
     def forward(self, x, edge_index, batch):
         """
         Performs a forward pass.
@@ -127,4 +127,5 @@ class BaselineModelSimple(torch.nn.Module):
         x = self.lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.input_size * self.hidd)))
         x = x.relu()
         x = torch.squeeze(self.lin2(x))
+        # x = torch.sigmoid(x)*110 # Assures that the predictions are between 0 and 110
         return x
