@@ -34,6 +34,8 @@ parser.add_argument('--loss', type=str, default='mse',
                     help='Loss function to be used for training. Can be mse or l1.')
 parser.add_argument('--lr', type=float, default=0.00005,
                     help='Learning rate for training.')
+parser.add_argument('--epochs', type=int, default=100,
+                    help='Number of epochs for training.')
 parser.add_argument('--adv_e_test', type=float, default=0.00)
 parser.add_argument('--adv_e_train', type=float, default=0.00)
 parser.add_argument('--n_iters_apgd', type=int, default=50)
@@ -62,7 +64,7 @@ model_type = "baseline_simple"          # Model type, can be # TODO: Complete mo
 experiment_name = args.exp_name         # Experiment name to define path were results are stored                           #
 loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                         #
 lr = args.lr                            # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)          #
-total_epochs = 50                      # Total number of epochs to train                                                  #
+total_epochs = args.epochs              # Total number of epochs to train                                                  #
 train_eps = args.adv_e_train            # Adversarial epsilon for train                                                    #
 n_iters_apgd = args.n_iters_apgd        # Number of performed APGD iterations in train                                     #
 # Test parameters ---------------------------------------------------------------------------------------------------------#
@@ -75,6 +77,7 @@ if experiment_name == '-1':
     experiment_name = norm + "_log2_True_" + loss_fn if log2_bool else norm + "_log2_False_" + loss_fn
     experiment_name = experiment_name + "_ComBat_True_" if ComBat else experiment_name + "_ComBat_False_"
     experiment_name = experiment_name + "_ComBat_seq_True" if ComBat_seq else experiment_name + "_ComBat_seq_False"
+    experiment_name = experiment_name + "_" + str(total_epochs) + "_epochs" 
 
 # Load data
 dataset_info = load_dataset(norm=norm, log2=log2_bool, corr_thr=coor_thr, p_thr=p_value_thr, force_compute=False,
