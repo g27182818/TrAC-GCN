@@ -1,5 +1,5 @@
 #!/bin/bash
-GPU=0
+GPU=3
 LOSS=mse
 EXP_NAME=-1
 LOG2=True

@@ -11,7 +11,7 @@ from utils import *
 # Set random seed
 np.random.seed(1234)
 
-def read_shokhirev(norm, log2, ComBat = False, ComBat_seq = False):
+def read_shokhirev(norm, log2, filter_type = 'none', ComBat = False, ComBat_seq = False):
     """
     This function loads one of 3 csv files of the Shokirev dataset proposed in DOI: 10.1111/acel.13280
     it performs a log2 transform if it is indicated and shuffles the data.
@@ -45,13 +45,33 @@ def read_shokhirev(norm, log2, ComBat = False, ComBat_seq = False):
     else:
         dataset_filename = norm+'_dataset.csv'
 
-    # Declare expression data path 
+    # Declare expression data path and path to tables containing the filtered genes 
     expression_path = os.path.join("data","Shokhirev_2020","normalized", dataset_filename)
+    gene_filtering_path = os.path.join("data","Shokhirev_2020","tables.xlsx")
     # Read expression file and make minor modifications
     expression = pd.read_csv(expression_path, sep=",", header=0)
     expression = expression.rename(columns = {'Unnamed: 0':'SRR.ID'})
     expression = expression.set_index('SRR.ID')
     expression = expression.T
+
+    # filtering type dictionary mapper
+    filtering_type_dict = {'1000var':'1000 Variable Gene',
+                           '1000diff':'1000 Differential Gene',
+                           '100var':'100 Variable Gene',
+                           '100diff':'100 Differential Gene'}
+
+    if filter_type == 'none':
+        # Obtain complete gene list
+        gene_names = expression.columns.tolist()
+    else:
+        # Read gene filtering tables
+        gene_filtering_xlsx = pd.read_excel(gene_filtering_path, sheet_name = "Table S5 (Related to Fig. 3)", header=3)
+        # Obtain filtered gene series
+        gene_names_series = gene_filtering_xlsx[filtering_type_dict[filter_type]]
+        # Obtain filtered gene list
+        gene_names = gene_names_series.tolist()
+        # Filter expression data to keep only the filtered genes
+        expression = expression.loc[:, expression.columns.isin(gene_names)]
 
     # Handle posible log2 transformation. In case ComBat is True, the expression matrix is already log2
     # transformed from the loaded file.
@@ -76,7 +96,7 @@ def read_shokhirev(norm, log2, ComBat = False, ComBat_seq = False):
     x_np = x_np[shuffler]
     y_np = y_np[shuffler]
 
-    return x_np, y_np
+    return x_np, y_np, gene_names
 
 def split_data(x, y, val_frac = 0.2, test_frac = 0.2):
     """
@@ -119,7 +139,8 @@ def split_data(x, y, val_frac = 0.2, test_frac = 0.2):
                  'y_test':  y[n-num_test:]}
     return data_dict
 
-def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, ComBat = False, ComBat_seq = False, force_compute=False):
+def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, filter_type = 'none',
+                           ComBat = False, ComBat_seq = False, force_compute=False):
     """
     This function computes and saves the edge indices and edge atributes of the graph asociated with 
     the gene expression matrix x. In this graph if the Spearman correlation (in absolute value) between
@@ -142,6 +163,9 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, ComBat = False, 
         the graph information.
     p_thr : float, optional
         P_value threshold to define the graph edges, by default 0.05.
+    filter_type : str, optional
+        Type of gene filtering applied to the genes from Shokhirev analysis. It is not used for anything but to save/load. 
+        Default is 'none'.
     ComBat : bool, optional
         Indicates if a dataset with ComBat batch correction was loaded, by default False.
     ComBat_seq : bool, optional
@@ -158,7 +182,8 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, ComBat = False, 
         Weights associated to the previously defined edges.
     """
     # Define dir, graph and info names
-    dir = os.path.join('graphs', 'shokhirev', norm, 'log2='+str(log2), 'ComBat='+str(ComBat), 'ComBat_seq='+str(ComBat_seq))
+    dir = os.path.join('graphs', 'shokhirev', norm, 'log2='+str(log2), 'ComBat='+str(ComBat),
+                       'ComBat_seq='+str(ComBat_seq), 'filter_type='+filter_type)
     name_graph = os.path.join(dir, 'graph_corr_thr_'+str(corr_thr)+'_p_thr_'+str(p_thr)+'.pkl')
     name_info = os.path.join(dir, 'graph_info_corr_thr_'+str(corr_thr)+'_p_thr_'+str(p_thr)+'.txt')
     
@@ -200,14 +225,14 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, ComBat = False, 
         with open(name_info, 'w') as f:
             print_both('Total amount of nodes: ' + str(x.shape[1]), f)
             print_both('Total amount of edges: ' + str(edge_attributes.shape[0]), f)
-            print_both('Average graph degree: ' + str(round(2*edge_attributes.shape[0]/x.shape[1], 3)), f)
+            print_both('Average graph degree: ' + str(round(edge_attributes.shape[0]/x.shape[1], 3)), f)
             print_both('Is the graph connected: ' + str(connected_bool), f)
             print_both('List of connected componnents size: ' + str(sorted(length_connected, reverse=True)), f)
 
     return edge_indices, edge_attributes
 
 def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05, force_compute=False,
-                 ComBat = False, ComBat_seq = False):
+                filter_type = 'none', ComBat = False, ComBat_seq = False):
     """
     This function loads a the complete Shokhirev dataset (DOI: 10.1111/acel.13280) for transcriptomic age regression
     It performs data shuffle, splits and defines a graph based on the Spearman correlation between genes.   
@@ -245,16 +270,18 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
     """
     # Get x_np and y_np from read_shokhirev()
     print('Reading, transforming and splitting data...')
-    x_np, y_np = read_shokhirev(norm, log2, ComBat, ComBat_seq)
+    x_np, y_np, gene_names = read_shokhirev(norm, log2, filter_type = filter_type, ComBat = ComBat, ComBat_seq = ComBat_seq)
     # Split dataset using split_data()
     split_dict = split_data(x_np, y_np, val_frac = val_frac, test_frac = test_frac)
     # Use Train x_p to compute or load the graph with compute_graph_shokirev()
     edge_indices, edge_attributes = compute_graph_shokirev(split_dict['x_train'], corr_thr= corr_thr,
                                                            norm=norm, log2=log2, p_thr=p_thr,
+                                                           filter_type = filter_type,
                                                            ComBat=ComBat, ComBat_seq=ComBat_seq,
                                                            force_compute=force_compute)
     # Append everything in a single dictionary
     dataset_info = {'split': split_dict,
-                    'graph': (edge_indices, edge_attributes)}
+                    'graph': (edge_indices, edge_attributes),
+                    'gene_names': gene_names}
     return dataset_info
 

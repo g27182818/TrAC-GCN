@@ -24,6 +24,10 @@ parser.add_argument('--norm', type=str, default="tpm",
                     help='The normalization method to be loaded via files. Can be raw, tpm or tmm.')
 parser.add_argument('--log2', type=str, default='True',
                     help='Parameter indicating if a log2 transformation is done under input data.')
+parser.add_argument('--filter_type', type=str, default='none',
+                    help = 'filtering to be applied to genes, can be none, 1000var, 1000diff, 100var or 100diff')
+parser.add_argument('--corr_thr', type=float, default=0.8,
+                    help='The correlation threshold to be used for definning graph connectivity.')
 parser.add_argument('--ComBat', type=str, default='False',
                     help='Parameter indicating if a dataset with ComBat batch correction is loaded. Can be True just if log2 = True.')
 parser.add_argument('--ComBat_seq', type=str, default='False',
@@ -43,45 +47,54 @@ args = parser.parse_args()
 ######################################################################################################
 
 
-# ---------------------------------------- Important variable parameters --------------------------------------------------#
-# Miscellaneous parameters ------------------------------------------------------------------------------------------------#
-torch.manual_seed(12345)                # Set torch manual seed                                                            #
-device = torch.device("cuda")           # Set cuda device                                                                  #
-# Dataset parameters ------------------------------------------------------------------------------------------------------#
-val_fraction = 0.2                      # Fraction of the data used for validation                                         #
-test_fraction = 0.2                     # Fraction of the data used for test                                               #
-batch_size = 100                        # Batch size parameter                                                             #
-coor_thr = 0.8                          # Spearman correlation threshold for declaring graph topology                      #
-p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology              #
-norm = args.norm                        # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'        #
-log2_bool = args.log2 == 'True'         # Whether to make a Log2 transformation of the input data                          #
-ComBat = args.ComBat == 'True'          # Whether to load ComBat batch corrected dataset                                   #
-ComBat_seq = args.ComBat_seq == 'True'  # Whether to load ComBat_seq batch corrected dataset                               #
-# Model parameters --------------------------------------------------------------------------------------------------------#
-hidd = 2                                # Hidden channels parameter for baseline model                                     #
-model_type = "baseline_simple"          # Model type, can be # TODO: Complete model types                                  #
-# Training parameters -----------------------------------------------------------------------------------------------------#
-experiment_name = args.exp_name         # Experiment name to define path were results are stored                           #
-loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                         #
-lr = args.lr                            # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)          #
-total_epochs = args.epochs              # Total number of epochs to train                                                  #
-train_eps = args.adv_e_train            # Adversarial epsilon for train                                                    #
-n_iters_apgd = args.n_iters_apgd        # Number of performed APGD iterations in train                                     #
-# Test parameters ---------------------------------------------------------------------------------------------------------#
-test_eps = args.adv_e_test              # Adversarial epsilon for test                                                     #
-# -------------------------------------------------------------------------------------------------------------------------#
+# ---------------------------------------- Important variable parameters ----------------------------------------------------#
+# Miscellaneous parameters --------------------------------------------------------------------------------------------------#
+torch.manual_seed(12345)                # Set torch manual seed                                                              #
+device = torch.device("cuda")           # Set cuda device                                                                    #
+# Dataset parameters --------------------------------------------------------------------------------------------------------#
+val_fraction = 0.2                      # Fraction of the data used for validation                                           #
+test_fraction = 0.2                     # Fraction of the data used for test                                                 #
+batch_size = 100                        # Batch size parameter                                                               #
+coor_thr = args.corr_thr                # Spearman correlation threshold for declaring graph topology                        #
+p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology                #
+norm = args.norm                        # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'          #
+log2_bool = args.log2 == 'True'         # Whether to make a Log2 transformation of the input data                            #
+filter_type = args.filter_type          # Filter applied to genes can be 'none', '1000var', '1000diff', '100var' or '100diff'#
+ComBat = args.ComBat == 'True'          # Whether to load ComBat batch corrected dataset. # TODO: Make single parameter      #
+ComBat_seq = args.ComBat_seq == 'True'  # Whether to load ComBat_seq batch corrected dataset                                 #
+# Model parameters ----------------------------------------------------------------------------------------------------------#
+hidd = 2                                # Hidden channels parameter for baseline model                                       #
+model_type = "baseline_simple"          # Model type, can be # TODO: Complete model types                                    #
+# Training parameters -------------------------------------------------------------------------------------------------------#
+experiment_name = args.exp_name         # Experiment name to define path were results are stored                             #
+loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                           #
+lr = args.lr                            # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)            #
+total_epochs = args.epochs              # Total number of epochs to train                                                    #
+train_eps = args.adv_e_train            # Adversarial epsilon for train                                                      #
+n_iters_apgd = args.n_iters_apgd        # Number of performed APGD iterations in train                                       #
+# Test parameters -----------------------------------------------------------------------------------------------------------#
+test_eps = args.adv_e_test              # Adversarial epsilon for test                                                       #
+# ---------------------------------------------------------------------------------------------------------------------------#
 
 
 # Handle automatic generation of experiment name
 if experiment_name == '-1':
-    experiment_name = norm + "_log2_True_" + loss_fn if log2_bool else norm + "_log2_False_" + loss_fn
-    experiment_name = experiment_name + "_ComBat_True_" if ComBat else experiment_name + "_ComBat_False_"
-    experiment_name = experiment_name + "_ComBat_seq_True" if ComBat_seq else experiment_name + "_ComBat_seq_False"
-    experiment_name = experiment_name + "_" + str(total_epochs) + "_epochs" 
+
+    # Handle different batch correction methods
+    if ComBat:
+        batch_str = '_batch_corr_ComBat_'
+    elif ComBat_seq:
+        batch_str = '_batch_corr_ComBat_seq_'
+    else:
+        batch_str = '_batch_corr_none_'
+    
+    # Define experiment name based on parameters
+    experiment_name = norm + batch_str + "_" + filter_type + "_filtering_coor_thr=" + str(coor_thr)   
 
 # Load data
 dataset_info = load_dataset(norm=norm, log2=log2_bool, corr_thr=coor_thr, p_thr=p_value_thr, force_compute=False,
-                            val_frac=val_fraction, test_frac=test_fraction, ComBat=ComBat, ComBat_seq=ComBat_seq)
+                            val_frac=val_fraction, test_frac=test_fraction, filter_type=filter_type,
+                            ComBat=ComBat, ComBat_seq=ComBat_seq)
 # Extract graph information
 edge_indices, edge_attributes = dataset_info['graph']
 
