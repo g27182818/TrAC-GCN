@@ -48,7 +48,7 @@ def train(train_loader, model, device, criterion, optimizer, adversarial=False, 
                 # Obtain adversarial input
                 input_x = input_x + delta
 
-            out = model(input_x, data.edge_index.to(device), data.batch.to(device))  # Perform a single forward pass.
+            out = model(input_x, data.edge_index.to(device), data.edge_attributes.to(device), data.batch.to(device))  # Perform a single forward pass.
             loss = criterion(out, input_y)  # Compute the loss.
             loss.backward()  # Derive gradients.
             optimizer.step()  # Update parameters based on gradients.
@@ -123,7 +123,7 @@ def test(loader, model, device, optimizer=None, adversarial=False, attack=None, 
                 input_x = input_x+delta
 
             # Get the model predictions
-            pred = model(input_x, data.edge_index.to(device), data.batch.to(device)).cpu().detach().numpy()
+            pred = model(input_x, data.edge_index.to(device), data.edge_attributes.to(device), data.batch.to(device)).cpu().detach().numpy()
             true = input_y.cpu().numpy()
             # Stack cases with previous ones
             glob_pred = np.hstack([glob_pred, pred]) if glob_pred.size else pred
@@ -245,7 +245,7 @@ def plot_predictions(model, device, val_loader, save_path):
         # Get the inputs of the model (x) and the groundtruth (y)
         input_x, input_y = data.x.to(device), data.y
         # Get the model predictions
-        pred = model(input_x, data.edge_index.to(device), data.batch.to(device)).cpu().detach().numpy()
+        pred = model(input_x, data.edge_index.to(device), data.edge_attributes.to(device), data.batch.to(device)).cpu().detach().numpy()
         true = input_y.numpy()
         # Stack cases with previous ones
         y_pred = np.hstack([y_pred, pred]) if y_pred.size else pred

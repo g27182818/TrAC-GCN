@@ -54,7 +54,7 @@ device = torch.device("cuda")           # Set cuda device                       
 # Dataset parameters --------------------------------------------------------------------------------------------------------#
 val_fraction = 0.2                      # Fraction of the data used for validation                                           #
 test_fraction = 0.2                     # Fraction of the data used for test                                                 #
-batch_size = 100                        # Batch size parameter                                                               #
+batch_size = 20                          # Batch size parameter                                                               #
 coor_thr = args.corr_thr                # Spearman correlation threshold for declaring graph topology                        #
 p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology                #
 norm = args.norm                        # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'          #
@@ -64,7 +64,7 @@ ComBat = args.ComBat == 'True'          # Whether to load ComBat batch corrected
 ComBat_seq = args.ComBat_seq == 'True'  # Whether to load ComBat_seq batch corrected dataset                                 #
 # Model parameters ----------------------------------------------------------------------------------------------------------#
 hidd = 2                                # Hidden channels parameter for baseline model                                       #
-model_type = "baseline_simple"          # Model type, can be # TODO: Complete model types                                    #
+model_type = "deepergcn"                # Model type, can be 'baseline_simple' or 'deepergcn'                                #
 # Training parameters -------------------------------------------------------------------------------------------------------#
 experiment_name = args.exp_name         # Experiment name to define path were results are stored                             #
 loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                           #
@@ -97,6 +97,8 @@ dataset_info = load_dataset(norm=norm, log2=log2_bool, corr_thr=coor_thr, p_thr=
                             ComBat=ComBat, ComBat_seq=ComBat_seq)
 # Extract graph information
 edge_indices, edge_attributes = dataset_info['graph']
+edge_attributes = torch.tensor(edge_attributes, dtype=torch.float)
+
 
 # Pass splits to torch
 split_dictionary = dataset_info['split']
@@ -132,6 +134,8 @@ elif model_type == "baseline_cheb":
     model = BaselineModelCheb(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
 elif model_type == "baseline_simple":
     model = BaselineModelSimple(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
+elif model_type == "deepergcn":
+    model = DeeperGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], input_node_channels=1, num_layers=12).to(device)
 else:
     raise NotImplementedError
 
