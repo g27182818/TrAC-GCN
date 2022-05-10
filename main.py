@@ -54,7 +54,7 @@ device = torch.device("cuda")           # Set cuda device                       
 # Dataset parameters --------------------------------------------------------------------------------------------------------#
 val_fraction = 0.2                      # Fraction of the data used for validation                                           #
 test_fraction = 0.2                     # Fraction of the data used for test                                                 #
-batch_size = 20                          # Batch size parameter                                                               #
+batch_size = 20                          # Batch size parameter                                                              #
 coor_thr = args.corr_thr                # Spearman correlation threshold for declaring graph topology                        #
 p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology                #
 norm = args.norm                        # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'          #
@@ -63,8 +63,8 @@ filter_type = args.filter_type          # Filter applied to genes can be 'none',
 ComBat = args.ComBat == 'True'          # Whether to load ComBat batch corrected dataset. # TODO: Make single parameter      #
 ComBat_seq = args.ComBat_seq == 'True'  # Whether to load ComBat_seq batch corrected dataset                                 #
 # Model parameters ----------------------------------------------------------------------------------------------------------#
-hidd = 2                                # Hidden channels parameter for baseline model                                       #
-model_type = "deepergcn"                # Model type, can be 'baseline_simple' or 'deepergcn'                                #
+hidd = 8                                # Hidden channels parameter for baseline model                                       #
+model_type = "MLR"                      # Model type, can be 'baseline_simple' or 'deepergcn' or 'MLR' or 'MLP'              #
 # Training parameters -------------------------------------------------------------------------------------------------------#
 experiment_name = args.exp_name         # Experiment name to define path were results are stored                             #
 loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                           #
@@ -135,7 +135,11 @@ elif model_type == "baseline_cheb":
 elif model_type == "baseline_simple":
     model = BaselineModelSimple(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
 elif model_type == "deepergcn":
-    model = DeeperGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], input_node_channels=1, num_layers=12).to(device)
+    model = DeeperGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], input_node_channels=1, num_layers=5).to(device)
+elif model_type == "MLR":
+    model = MLP(h_sizes=[torch_split['x_train'].shape[1]], out_size=1).to(device)
+elif model_type == "MLP":
+    model = MLP(h_sizes=[torch_split['x_train'].shape[1], 1000], out_size=1).to(device)
 else:
     raise NotImplementedError
 
@@ -282,5 +286,11 @@ print_epoch(best_train_metric,
 # Generate val predictions plot and save it to val_predictions_fig_path
 plot_predictions(model, device, val_loader, val_prediction_fig_path)
 
+
 # TODO: Do a 'just_plot' option to just plot the training performance and not train the model
+
+
+
+
+
 
