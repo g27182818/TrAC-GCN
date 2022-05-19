@@ -1,4 +1,5 @@
 import os
+import time
 import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr
@@ -7,6 +8,8 @@ from scipy.sparse import coo_matrix
 from torch_geometric.utils import from_scipy_sparse_matrix
 import networkx as nx
 import pickle as pkl
+from biomart import BiomartServer
+import json
 from utils import *
 # Set random seed
 np.random.seed(1234)
@@ -29,6 +32,8 @@ def read_shokhirev(norm, log2, filter_type = 'none', ComBat = False, ComBat_seq 
         The shuffled matrix of gene expression in the specified normalization. Rows are samples, columns are genes.
     y_np : np.array
         The shuffled vector of patient age.
+    gene_list : list
+        Ordered list of genes from the input matrix.
     """
     # Handle multiple possible errors
     # Handle the case where user defines both ComBat and ComBat_seq as True
@@ -86,6 +91,8 @@ def read_shokhirev(norm, log2, filter_type = 'none', ComBat = False, ComBat_seq 
     del meta['Unnamed: 0']
     meta = meta.set_index('SRR.ID')
 
+    # Get ordered list of genes
+    gene_list = expression.columns.tolist()
     # Declare numpy variables
     x_np = expression.values
     y_np = meta['Age'].values
@@ -231,8 +238,125 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, filter_type = 'n
 
     return edge_indices, edge_attributes
 
+# Function to get a graph using srting data
+def get_string_graph(path, gene_list, conf_thr = 0.0, channels:list = ['combined_score']):
+    """
+    Get a graph from string dtabase matrix thresholded by the conf_thr and with the channels specified.
+    Parameters
+    ----------
+    path : str
+        Path to the folder containing string data in txt format.
+    gene_list : list
+        List of genes to be included in the graph. This list comes from the read_shokhirev() function. It is ordered.
+    """
+    edge_indices = []
+    edge_attributes = []
+
+    # Check if string hugo mapped string data exists
+    if not os.path.exists(os.path.join(path, 'string_hugo_mapped.txt')):
+        # Check if json file exists
+        if not os.path.exists(os.path.join(path,'ensp_2_hugo_mapper.json')):
+            # Get Biomart server
+            server = BiomartServer( "http://uswest.ensembl.org/biomart" )
+            # Get human dataset
+            dataset = server.datasets["hsapiens_gene_ensembl"]
+            # Search for ENSPs and get the corresponding Hugo names
+            response = dataset.search({'attributes': ['ensembl_peptide_id', 'hgnc_symbol']})
+            # save response to ensp_2_hugo_mapper dict
+            ensp_2_hugo_mapper = {}
+            # Iter over response
+            for line in response.iter_lines():
+                line = line.decode('utf-8')
+                content = line.split("\t")
+                if content[0] != '' and content[1] != '':
+                    ensp_2_hugo_mapper[content[0]] = content[1]
+            # Save dict as json file
+            with open(os.path.join('data', 'string','ensp_2_hugo_mapper.json'), 'w') as f:
+                json.dump(ensp_2_hugo_mapper, f, indent=4)
+        else:
+            # Load json file
+            with open(os.path.join('data', 'string','ensp_2_hugo_mapper.json'), 'r') as f:
+                ensp_2_hugo_mapper = json.load(f)
+        
+        # Open STRING txt file with pandas
+        # TODO: Make an automatic download of the original string file
+        string_df = pd.read_csv(os.path.join('data', 'string','9606.protein.links.detailed.v11.5.txt'), sep=' ')
+
+        # delete '9606.' from values in columns `protein1` and `protein2`
+        string_df['protein1'] = string_df['protein1'].str.replace('9606.', '')
+        string_df['protein2'] = string_df['protein2'].str.replace('9606.', '')
+
+        # Delete rows with protein1 values that are not in ensp_2_hugo_mapper keys
+        string_df = string_df[string_df['protein1'].isin(ensp_2_hugo_mapper.keys())]
+        # Delete rows with protein2 values that are not in ensp_2_hugo_mapper keys
+        string_df = string_df[string_df['protein2'].isin(ensp_2_hugo_mapper.keys())]
+
+        # Map protein1 and protein2 values to hugo names
+        string_df['protein1'] = string_df['protein1'].map(ensp_2_hugo_mapper)
+        string_df['protein2'] = string_df['protein2'].map(ensp_2_hugo_mapper)
+
+        # Get probability scores from STRING
+        string_df.loc[:, ~ string_df.columns.isin(['protein1', 'protein2'])] = string_df.loc[:, ~ string_df.columns.isin(['protein1', 'protein2'])]/1000 
+
+        # Create merged column with protein1 and protein2 values
+        string_df['p12'] = string_df['protein1']+','+string_df['protein2']
+
+        # Compute mean of duplicates in merged column
+        string_df = string_df.groupby('p12').mean()
+        
+        # Put merged column back in dataframe
+        string_df = string_df.reset_index()
+        # Split merged column to get protein1 and protein2 values
+        string_df['protein1'] = string_df['p12'].str.split(',').str[0]
+        string_df['protein2'] = string_df['p12'].str.split(',').str[1]
+        
+        # Delete merged column
+        string_df = string_df.drop('p12', axis=1)
+
+        # Save mapped dataframe to txt file
+        string_df.to_csv(os.path.join(path,'string_hugo_mapped.txt'), sep=' ', index=False)
+
+    # If hugo mapped string data exists, load it
+    else:
+        string_df = pd.read_csv(os.path.join(path,'string_hugo_mapped.txt'), sep=' ')
+
+    print('Loading STRING graph for the dataset...')
+    # Filter string dataframe to keep only the genes in the gene_list
+    string_df = string_df[string_df['protein1'].isin(gene_list)]
+    string_df = string_df[string_df['protein2'].isin(gene_list)]
+
+    # Filter string_df rows by the conf_thr
+    string_df = string_df[string_df['combined_score'] > conf_thr]
+
+    # make mapper for gene indexes
+    gene_index_mapper = {gene: i for i, gene in enumerate(gene_list)}
+
+    # Get index of genes in the gene_list for string_df['protein1'] and string_df['protein2']
+    string_df['protein1_index'] = string_df['protein1'].map(gene_index_mapper)
+    string_df['protein2_index'] = string_df['protein2'].map(gene_index_mapper)
+
+    # string_df['protein1_index'] and string_df['protein2_index'] contain now graph edges in both directions
+    # Now we declare the edges as tensor and edge_attributes as a tensor
+    edges_np = np.stack([string_df['protein1_index'], string_df['protein2_index']], axis=0)
+    attributes_np = string_df[channels].values
+    edge_indices = torch.tensor(edges_np, dtype=torch.long)
+    edge_attributes = torch.tensor(attributes_np)
+
+    # Compute graph features with networkx
+    print('Computing graph features with networkx...')
+    edges_nx = sorted([(int(edges_np[0, i]), int(edges_np[1, i])) for i in range(edges_np.shape[1])])
+    nx_graph = nx.from_edgelist(edges_nx)
+    length_connected = [len(c) for c in sorted(nx.connected_components(nx_graph), key=len, reverse=False)]
+    print('Total amount of nodes: ' + str(len(gene_list)))
+    print('Total amount of edges: ' + str(edge_attributes.shape[0]))
+    print('Average graph degree: ' + str(round(edge_attributes.shape[0]/len(gene_list), 3)))
+    print('Biggest connected component size: ' + str(length_connected[-1]))
+    return edge_indices, edge_attributes
+
+
 def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05, force_compute=False,
-                filter_type = 'none', ComBat = False, ComBat_seq = False):
+                filter_type = 'none', ComBat = False, ComBat_seq = False, string = False, conf_thr = 0.0,
+                channels_string = ['combined_score']):
     """
     This function loads a the complete Shokhirev dataset (DOI: 10.1111/acel.13280) for transcriptomic age regression
     It performs data shuffle, splits and defines a graph based on the Spearman correlation between genes.   
@@ -258,6 +382,14 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
         Whether to load ComBat batch corrected dataset, by default False.
     ComBat_seq : bool, optional
         Whether to load ComBat_seq batch corrected dataset, by default False.
+    string : bool, optional
+        Whether to load STRING data into the graph. In case it is true corr_thr and p_thr are ignored,
+        by default False.
+    conf_thr : float, optional
+        Confidence threshold to filter STRING edges. It is just used when string==True, by default 0.0.
+    channels_string : list, optional
+        List of string channels to be used for STRING data. Can be a compination of: combined_score, textmining, database,
+        experimental, coexpression, cooccurence, fusion, neighborhood. By default ['combined_score'].
 
     Returns
     -------
@@ -273,15 +405,22 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
     x_np, y_np, gene_names = read_shokhirev(norm, log2, filter_type = filter_type, ComBat = ComBat, ComBat_seq = ComBat_seq)
     # Split dataset using split_data()
     split_dict = split_data(x_np, y_np, val_frac = val_frac, test_frac = test_frac)
-    # Use Train x_p to compute or load the graph with compute_graph_shokirev()
-    edge_indices, edge_attributes = compute_graph_shokirev(split_dict['x_train'], corr_thr= corr_thr,
-                                                           norm=norm, log2=log2, p_thr=p_thr,
-                                                           filter_type = filter_type,
-                                                           ComBat=ComBat, ComBat_seq=ComBat_seq,
-                                                           force_compute=force_compute)
+
+    if string:
+        edge_indices, edge_attributes = get_string_graph(os.path.join('data', 'string'), gene_names,
+                                                     conf_thr = conf_thr, channels = channels_string)
+    else:
+        # Use Train x_p to compute or load the graph with compute_graph_shokirev()
+        edge_indices, edge_attributes = compute_graph_shokirev(split_dict['x_train'], corr_thr= corr_thr,
+                                                            norm=norm, log2=log2, p_thr=p_thr,
+                                                            filter_type = filter_type,
+                                                            ComBat=ComBat, ComBat_seq=ComBat_seq,
+                                                            force_compute=force_compute)
     # Append everything in a single dictionary
     dataset_info = {'split': split_dict,
                     'graph': (edge_indices, edge_attributes),
                     'gene_names': gene_names}
     return dataset_info
 
+# # Test of the complete pipeline
+# test_dataset_info = load_dataset(norm='raw', log2=True, string=True, conf_thr=0.9)

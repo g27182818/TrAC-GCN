@@ -1,13 +1,27 @@
 #!/bin/bash
-GPU=2
-LOSS=mse
-EXP_NAME=MLR_test_no_filtered_comparison
+# GPU to use
+GPU=1
+# Dataset parameters #####################################
+NORM=tpm
 LOG2=True
+COMBAT=False
+COMBAT_SEQ=True
+FILTER_TYPE=none
+# Graph parameters #######################################
+STRING=True
+ALL_STRING=False
+CONF_THR=0.9
+CORR_THR=0.7
+# Training parameters #####################################
+EXP_NAME=test_new_sh
+LOSS=mse
 LR=0.00005
 EPOCHS=100
-CORR_THR=0.7
-FILTER_TYPE=none
+BATCH_SIZE=9
+ADV_E_TEST=0.0
+ADV_E_TRAIN=0.0
+N_ITERS_APGD=50
 
 
-# CUDA_VISIBLE_DEVICES=$GPU python main.py --norm tpm --ComBat False --ComBat_seq True --filter_type $FILTER_TYPE --corr_thr $CORR_THR --log2 $LOG2  --loss $LOSS --lr $LR --epochs $EPOCHS --exp_name $EXP_NAME
-CUDA_VISIBLE_DEVICES=$GPU python main.py --norm tpm --ComBat False --ComBat_seq True  --filter_type $FILTER_TYPE --corr_thr $CORR_THR --log2 $LOG2  --loss $LOSS --lr $LR --epochs $EPOCHS --exp_name $EXP_NAME
+
+CUDA_VISIBLE_DEVICES=$GPU python main.py --norm $NORM --log2 $LOG2 --ComBat $COMBAT --ComBat_seq $COMBAT_SEQ --filter_type $FILTER_TYPE --string $STRING --all_string $ALL_STRING --conf_thr $CONF_THR --corr_thr $CORR_THR --exp_name $EXP_NAME --loss $LOSS --lr $LR --epochs $EPOCHS --batch_size $BATCH_SIZE --adv_e_test $ADV_E_TEST --adv_e_train $ADV_E_TRAIN --n_iters_apgd $N_ITERS_APGD

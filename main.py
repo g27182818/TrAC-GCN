@@ -20,29 +20,26 @@ np.random.seed(1234)
 
 # Parser to specify the normalization method to perform analysis #####################################
 parser = argparse.ArgumentParser(description='Code for TrAC-GCN implementation.')
-parser.add_argument('--norm', type=str, default="tpm",
-                    help='The normalization method to be loaded via files. Can be raw, tpm or tmm.')
-parser.add_argument('--log2', type=str, default='True',
-                    help='Parameter indicating if a log2 transformation is done under input data.')
-parser.add_argument('--filter_type', type=str, default='none',
-                    help = 'filtering to be applied to genes, can be none, 1000var, 1000diff, 100var or 100diff')
-parser.add_argument('--corr_thr', type=float, default=0.8,
-                    help='The correlation threshold to be used for definning graph connectivity.')
-parser.add_argument('--ComBat', type=str, default='False',
-                    help='Parameter indicating if a dataset with ComBat batch correction is loaded. Can be True just if log2 = True.')
-parser.add_argument('--ComBat_seq', type=str, default='False',
-                    help= 'Parameter indicating if a dataset with ComBat_seq batch correction is loaded.')
-parser.add_argument('--exp_name', type=str, default='misc_test',
-                    help='Experiment name to be used for saving files. Default is misc_test. If set to -1 the name will be generated automatically.')
-parser.add_argument('--loss', type=str, default='mse',
-                    help='Loss function to be used for training. Can be mse or l1.')
-parser.add_argument('--lr', type=float, default=0.00005,
-                    help='Learning rate for training.')
-parser.add_argument('--epochs', type=int, default=100,
-                    help='Number of epochs for training.')
-parser.add_argument('--adv_e_test', type=float, default=0.00)
-parser.add_argument('--adv_e_train', type=float, default=0.00)
-parser.add_argument('--n_iters_apgd', type=int, default=50)
+# Dataset parameters ##################################################################################
+parser.add_argument('--norm',           type=str,   default="tpm",       help='The normalization method to be loaded via files. Can be raw, tpm or tmm.')
+parser.add_argument('--log2',           type=str,   default='True',      help='Parameter indicating if a log2 transformation is done under input data.')
+parser.add_argument('--ComBat',         type=str,   default='False',     help='Parameter indicating if a dataset with ComBat batch correction is loaded. Can be True just if log2 = True.')
+parser.add_argument('--ComBat_seq',     type=str,   default='False',     help= 'Parameter indicating if a dataset with ComBat_seq batch correction is loaded.')
+parser.add_argument('--filter_type',    type=str,   default='none',      help = 'filtering to be applied to genes, can be none, 1000var, 1000diff, 100var or 100diff')
+# Graph parameters ###################################################################################
+parser.add_argument('--string',         type=str,   default='False',     help='Parameter indicating if the graph made using STRING database.')
+parser.add_argument('--all_string',     type=str,   default='False',     help='Parameter indicating if all STRING channels should be used otherwise combined_score will be used.')
+parser.add_argument('--conf_thr',       type=float, default=0.0,         help='The confidence threshold to staablish connections in STRING graphs.')
+parser.add_argument('--corr_thr',       type=float, default=0.8,         help='The correlation threshold to be used for definning graph connectivity.')
+# Training parameters ################################################################################
+parser.add_argument('--exp_name',       type=str,   default='misc_test', help='Experiment name to be used for saving files. Default is misc_test. If set to -1 the name will be generated automatically.')
+parser.add_argument('--loss',           type=str,   default='mse',       help='Loss function to be used for training. Can be mse or l1.')
+parser.add_argument('--lr',             type=float, default=0.00005,     help='Learning rate for training.')
+parser.add_argument('--epochs',         type=int,   default=100,         help='Number of epochs for training.')
+parser.add_argument('--batch_size',     type=int,   default=20,          help='Batch size for training.')
+parser.add_argument('--adv_e_test',     type=float, default=0.00,        help='Adversarial upper bound of perturbations during test.')
+parser.add_argument('--adv_e_train',    type=float, default=0.00,        help='Adversarial upper bound of perturbations during train.')
+parser.add_argument('--n_iters_apgd',   type=int,   default=50,          help='Number of iterations for APGD during train.')
 args = parser.parse_args()
 ######################################################################################################
 
@@ -54,17 +51,21 @@ device = torch.device("cuda")           # Set cuda device                       
 # Dataset parameters --------------------------------------------------------------------------------------------------------#
 val_fraction = 0.2                      # Fraction of the data used for validation                                           #
 test_fraction = 0.2                     # Fraction of the data used for test                                                 #
-batch_size = 20                          # Batch size parameter                                                              #
-coor_thr = args.corr_thr                # Spearman correlation threshold for declaring graph topology                        #
-p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology                #
+batch_size = args.batch_size            # Batch size parameter                                                               #
 norm = args.norm                        # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'          #
 log2_bool = args.log2 == 'True'         # Whether to make a Log2 transformation of the input data                            #
 filter_type = args.filter_type          # Filter applied to genes can be 'none', '1000var', '1000diff', '100var' or '100diff'#
 ComBat = args.ComBat == 'True'          # Whether to load ComBat batch corrected dataset. # TODO: Make single parameter      #
 ComBat_seq = args.ComBat_seq == 'True'  # Whether to load ComBat_seq batch corrected dataset                                 #
+# Graph parameters ----------------------------------------------------------------------------------------------------------#
+string = args.string == 'True'          # Whether to use STRING data to define graph                                         #
+conf_thr = args.conf_thr                # Confidence threshold to be used for defining graph connectivity with STRING        #
+all_string = args.all_string == 'True'  # Whether to use all STRING channels or just combined_score                          #
+coor_thr = args.corr_thr                # Spearman correlation threshold for declaring graph topology                        #
+p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology                #
 # Model parameters ----------------------------------------------------------------------------------------------------------#
 hidd = 8                                # Hidden channels parameter for baseline model                                       #
-model_type = "MLR"                      # Model type, can be 'baseline_simple' or 'deepergcn' or 'MLR' or 'MLP'              #
+model_type = 'baseline_simple'          # Model type, can be 'baseline_simple' or 'deepergcn' or 'MLR' or 'MLP'              #
 # Training parameters -------------------------------------------------------------------------------------------------------#
 experiment_name = args.exp_name         # Experiment name to define path were results are stored                             #
 loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                           #
@@ -79,7 +80,6 @@ test_eps = args.adv_e_test              # Adversarial epsilon for test          
 
 # Handle automatic generation of experiment name
 if experiment_name == '-1':
-
     # Handle different batch correction methods
     if ComBat:
         batch_str = '_batch_corr_ComBat_'
@@ -91,13 +91,18 @@ if experiment_name == '-1':
     # Define experiment name based on parameters
     experiment_name = norm + batch_str + "_" + filter_type + "_filtering_coor_thr=" + str(coor_thr)   
 
+# All posible channels for STRING graphs
+str_all_channels = ['combined_score', 'textmining', 'database', 'experimental', 'coexpression', 'cooccurence', 'fusion', 'neighborhood']
+channels_string = str_all_channels if all_string else ['combined_score']
+
 # Load data
 dataset_info = load_dataset(norm=norm, log2=log2_bool, corr_thr=coor_thr, p_thr=p_value_thr, force_compute=False,
                             val_frac=val_fraction, test_frac=test_fraction, filter_type=filter_type,
-                            ComBat=ComBat, ComBat_seq=ComBat_seq)
+                            ComBat=ComBat, ComBat_seq=ComBat_seq, string = string, conf_thr = conf_thr,
+                            channels_string = channels_string)
 # Extract graph information
 edge_indices, edge_attributes = dataset_info['graph']
-edge_attributes = torch.tensor(edge_attributes, dtype=torch.float)
+edge_attributes = edge_attributes.type(torch.float)
 
 
 # Pass splits to torch
@@ -128,11 +133,8 @@ train_loader = DataLoader(train_graph_list, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_graph_list, batch_size=batch_size)
 test_loader = DataLoader(test_graph_list, batch_size=batch_size)
 
-if model_type == "baseline":
-    model = BaselineModel(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
-elif model_type == "baseline_cheb":
-    model = BaselineModelCheb(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
-elif model_type == "baseline_simple":
+
+if model_type == "baseline_simple":
     model = BaselineModelSimple(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
 elif model_type == "deepergcn":
     model = DeeperGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], input_node_channels=1, num_layers=5).to(device)
