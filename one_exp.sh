@@ -1,6 +1,6 @@
 #!/bin/bash
 # GPU to use
-GPU=1
+GPU=3
 # Dataset parameters #####################################
 NORM=tpm
 LOG2=True
@@ -10,13 +10,13 @@ FILTER_TYPE=none
 # Graph parameters #######################################
 STRING=True
 ALL_STRING=False
-CONF_THR=0.9
+CONF_THR=0.0
 CORR_THR=0.7
 # Training parameters #####################################
-EXP_NAME=test_new_sh
+EXP_NAME=string_low_conf_batch_9_toy_model
 LOSS=mse
 LR=0.00005
-EPOCHS=100
+EPOCHS=50
 BATCH_SIZE=9
 ADV_E_TEST=0.0
 ADV_E_TRAIN=0.0

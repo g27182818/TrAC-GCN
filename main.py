@@ -17,6 +17,10 @@ import matplotlib.pyplot as plt
 
 np.random.seed(1234)
 
+# Add optional timmer to delay the execution of the code
+import time
+time.sleep(6000)
+
 
 # Parser to specify the normalization method to perform analysis #####################################
 parser = argparse.ArgumentParser(description='Code for TrAC-GCN implementation.')
