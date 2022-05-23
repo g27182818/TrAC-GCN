@@ -1,3 +1,4 @@
+from calendar import c
 import torch
 import torch.nn.functional as F
 from torch.nn import Linear
@@ -41,8 +42,10 @@ class BaselineModelSimple(torch.nn.Module):
         x = x.relu()
         x = self.lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.input_size * self.hidd)))
         x = x.relu()
+        x = F.dropout(x, p=0.5, training=self.training) # Added dropout
         x = torch.squeeze(self.lin2(x))
         # x = torch.sigmoid(x)*110 # Assures that the predictions are between 0 and 110
+        x = torch.clamp(x, 0, 110) # Assures that the predictions are between 0 and 110
         return x
 
 class DeeperGCN(torch.nn.Module):

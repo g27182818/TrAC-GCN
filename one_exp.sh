@@ -10,13 +10,13 @@ FILTER_TYPE=none
 # Graph parameters #######################################
 STRING=True
 ALL_STRING=False
-CONF_THR=0.0
+CONF_THR=0.9
 CORR_THR=0.7
 # Training parameters #####################################
-EXP_NAME=string_low_conf_batch_9_toy_model
+EXP_NAME=string_high_conf_batch_9_toy_model_clamp_dropout_0.5
 LOSS=mse
 LR=0.00005
-EPOCHS=50
+EPOCHS=100
 BATCH_SIZE=9
 ADV_E_TEST=0.0
 ADV_E_TRAIN=0.0
