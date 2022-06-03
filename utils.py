@@ -340,4 +340,5 @@ def print_both(p_string, f):
         Txt file handle indicating where to print. 
     """
     print(p_string)
-    f.write(p_string + '\n')
+    f.write(p_string)
+    f.write('\n')

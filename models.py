@@ -10,14 +10,14 @@ import torch.nn as nn
 # TODO: Propose diferent models
 
 
-class BaselineModelSimple(torch.nn.Module):
+class BaselineModel(torch.nn.Module):
     def __init__(self, hidden_channels, input_size, out_size):
         """
         Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
         :param hidden_channels: (Int) Hidden channels in every layer.
         :param out_size: (Int) Number of output classes.
         """
-        super(BaselineModelSimple, self).__init__()
+        super(BaselineModel, self).__init__()
         # Class atributes
         self.hidd = hidden_channels
         self.input_size = input_size
@@ -107,26 +107,50 @@ class DeeperGCN(torch.nn.Module):
 
 # MLP module for simple comparison
 class MLP(torch.nn.Module):
-    def __init__(self, h_sizes, out_size, act="relu"):
+    def __init__(self, h_sizes, out_size, act="relu", init_weights=None, dropout=0.0):
         """
         Class constructor for simple comparison, Inherits from torch.nn.Module. This model DOES NOT include graph
         connectivity information or any other. It uses raw input.
         :param h_sizes: (list) List of sizes of the hidden layers. Does not include the output size.
         :param out_size: (int) Number of output classes.
-        :param act: (str) Paramter to specify the activation function. Can be "relu", "sigmoid" or "gelu". Default
+        :param act: (str) Paramter to specify the activation function. Can be "relu", "sigmoid", "elu" or "gelu". Default
                     "relu" (Default = "relu").
+        :param init_weights: (function) Funtion to initialize the weights. Default is None.
+        :param dropout: (float) Parameter to specify the dropout rate. Default is 0.0.
         """
         super(MLP, self).__init__()
         # Activation function definition
-        self.activation = act
+        self.activation_str = act
+        # Init weights function
+        self.init_weights = init_weights
+        # Dropout rate
+        self.dropout = dropout
         # Sizes definition
         self.hidd_sizes = h_sizes
+        
+        # Activation function
+        if self.activation_str == "relu":
+            self.act = F.relu
+        elif self.activation_str == "sigmoid":
+            self.act = F.sigmoid
+        elif self.activation_str == "elu":
+            self.act = F.elu
+        elif self.activation_str == "gelu":
+            self.act = F.gelu
+        else:
+            raise ValueError("Activation function not supported")
+
         # Hidden layers
         self.hidden = nn.ModuleList()
         for k in range(len(h_sizes) - 1):
             self.hidden.append(nn.Linear(h_sizes[k], h_sizes[k + 1]))
+            if self.init_weights is not None:
+                self.hidden[-1].weight.data = self.init_weights(self.hidden[-1].weight.data)
         # Output layer
         self.out = nn.Linear(h_sizes[-1], out_size)
+        if self.init_weights is not None:
+            self.out.weight.data = self.init_weights(self.out.weight.data)
+        
 
     def forward(self, x, edge_index, edge_attr, batch):
         """
@@ -143,14 +167,11 @@ class MLP(torch.nn.Module):
         x = torch.reshape(x, (torch.max(batch).item() + 1, self.hidd_sizes[0]))
         # Feedforward
         for layer in self.hidden:
-            if self.activation == "relu":
-                x = F.relu(layer(x))
-            elif self.activation == "gelu":
-                x = F.gelu(layer(x))
-            elif self.activation == "sigmoid":
-                x = F.sigmoid(layer(x))
-            else:
-                raise NotImplementedError("Activation function not impemented")
+            x = self.act(layer(x))
+        
+        # Apply dropout
+        if self.dropout > 0:
+            x = F.dropout(x, p=self.dropout, training=self.training)
 
         # Output layer. This is the only one used in multinomial logistic regression
         output = torch.squeeze(self.out(x))
