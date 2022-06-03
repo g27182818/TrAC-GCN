@@ -1,31 +1,35 @@
-from calendar import c
 import torch
 import torch.nn.functional as F
 from torch.nn import Linear
-from torch_geometric.nn import GCNConv, ChebConv
 from torch.nn import LayerNorm, Linear, ReLU
-from torch_geometric.nn import DeepGCNLayer, GENConv
+from torch_geometric.nn import GCNConv, ChebConv, DeepGCNLayer, GENConv
 import torch.nn as nn
 
 # TODO: Propose diferent models
 
 
 class BaselineModel(torch.nn.Module):
-    def __init__(self, hidden_channels, input_size, out_size):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
         """
         Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
         :param hidden_channels: (Int) Hidden channels in every layer.
         :param out_size: (Int) Number of output classes.
+        :param dropout: (Float) Dropout probability.
+        :param final_pool: (str) Final pooling type over nodes.
         """
         super(BaselineModel, self).__init__()
         # Class atributes
         self.hidd = hidden_channels
         self.input_size = input_size
+        self.out_size = out_size
+        self.dropout = dropout
+        self.final_pool = final_pool
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
         # Convolution definitions
         self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
-        self.lin1 = Linear(hidden_channels * self.input_size, 1000)
-        self.lin2 = Linear(1000, out_size)
+        self.lin1 = Linear(self.lin_input_size, 1000)
+        self.lin2 = Linear(1000, self.out_size)
     def forward(self, x, edge_index, edge_attr, batch):
         """
         Performs a forward pass.
@@ -40,22 +44,96 @@ class BaselineModel(torch.nn.Module):
         x = x.relu()
         x = self.conv2(x, edge_index)
         x = x.relu()
-        x = self.lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.input_size * self.hidd)))
+        if self.final_pool == 'none':
+            pass
+        elif self.final_pool == 'mean':
+            # Get mean from each node
+            x = x.mean(dim=1)
+        elif self.final_pool == 'max':
+            x = torch.max(x, dim=1)[0]
+        elif self.final_pool == 'add':
+            x = x.sum(dim=1)
+        else:
+            raise ValueError('Invalid final pooling type')
+
+        x = self.lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.lin_input_size)))
         x = x.relu()
-        x = F.dropout(x, p=0.5, training=self.training) # Added dropout
+        x = F.dropout(x, p=self.dropout, training=self.training) # Added dropout
         x = torch.squeeze(self.lin2(x))
-        # x = torch.sigmoid(x)*110 # Assures that the predictions are between 0 and 110
         x = torch.clamp(x, 0, 110) # Assures that the predictions are between 0 and 110
         return x
 
+
+class BaselineModelPool(torch.nn.Module):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
+        """
+        Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
+        :param hidden_channels: (Int) Hidden channels in every layer.
+        :param out_size: (Int) Number of output classes.
+        :param dropout: (Float) Dropout probability.
+        :param final_pool: (str) Final pooling type over nodes.
+        """
+        super(BaselineModel, self).__init__()
+        # Class atributes
+        self.hidd = hidden_channels
+        self.input_size = input_size
+        self.out_size = out_size
+        self.dropout = dropout
+        self.final_pool = final_pool
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        # Convolution definitions
+        self.conv1_embed = ChebConv(1, hidden_channels, K=5)
+        self.conv1_pool = ChebConv(hidden_channels, hidden_channels, K=5)
+        self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
+        self.lin1 = Linear(self.lin_input_size, 1000)
+        self.lin2 = Linear(1000, self.out_size)
+    def forward(self, x, edge_index, edge_attr, batch):
+        """
+        Performs a forward pass.
+        :param x: (torch.Tensor) Input features of each node.
+        :param edge_index: (torch.Tensor) Edges indicating graph connectivity.
+        :param edge_attr: (torch.Tensor) Edge attributes.
+        :param batch: (torch.Tensor) Batch vector indicating the correspondence of each node in the batch.
+        :return: (torch.Tensor) Matrix of logits, each row corresponds with a patient in the batch and each column represent a
+                 cancer or normal type logit.
+        """
+        x = self.conv1(x, edge_index)
+        x = x.relu()
+        x = self.conv2(x, edge_index)
+        x = x.relu()
+        if self.final_pool == 'none':
+            pass
+        elif self.final_pool == 'mean':
+            # Get mean from each node
+            x = x.mean(dim=1)
+        elif self.final_pool == 'max':
+            x = torch.max(x, dim=1)[0]
+        elif self.final_pool == 'add':
+            x = x.sum(dim=1)
+        else:
+            raise ValueError('Invalid final pooling type')
+
+        x = self.lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.lin_input_size)))
+        x = x.relu()
+        x = F.dropout(x, p=self.dropout, training=self.training) # Added dropout
+        x = torch.squeeze(self.lin2(x))
+        x = torch.clamp(x, 0, 110) # Assures that the predictions are between 0 and 110
+        return x
+
+
+
 class DeeperGCN(torch.nn.Module):
-    def __init__(self, hidden_channels, num_layers, input_size, input_node_channels=1, input_edge_channels=1, out_size=1):
+    def __init__(self, hidden_channels, num_layers, input_size, input_node_channels=1, input_edge_channels=1, out_size=1, dropout=0.3, final_pool='none'):
         super().__init__()
 
         self.input_size = input_size
         self.hidden_channels = hidden_channels
         self.node_encoder = Linear(input_node_channels, hidden_channels)
         self.edge_encoder = Linear(input_edge_channels, hidden_channels)
+        self.dropout = dropout
+        self.final_pool = final_pool
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        self.out_size = out_size
 
         self.layers = torch.nn.ModuleList()
         for i in range(1, num_layers + 1):
@@ -68,8 +146,8 @@ class DeeperGCN(torch.nn.Module):
                                  ckpt_grad=i % 3)
             self.layers.append(layer)
 
-        self.lin1 = Linear(self.hidden_channels * self.input_size, 1000)
-        self.lin2 = Linear(1000, out_size)
+        self.lin1 = Linear(self.lin_input_size, 1000)
+        self.lin2 = Linear(1000, self.out_size)
 
     def forward(self, x, edge_index, edge_attr, batch):
         
@@ -93,6 +171,17 @@ class DeeperGCN(torch.nn.Module):
 
         x = self.layers[0].act(self.layers[0].norm(x))
 
+        if self.final_pool == 'none':
+            pass
+        elif self.final_pool == 'mean':
+            x = x.mean(dim=1)
+        elif self.final_pool == 'max':
+            x = torch.max(x, dim=1)[0]
+        elif self.final_pool == 'add':
+            x = x.sum(dim=1)
+        else:
+            raise ValueError('Invalid final pooling type')
+
         lin_x = None
         for i in range(torch.max(batch).item()+1):
             sample_x = x[batch==i, :]
@@ -100,9 +189,8 @@ class DeeperGCN(torch.nn.Module):
             sample_x = F.relu(self.lin1(sample_x))
             lin_x = torch.cat((lin_x, torch.unsqueeze(sample_x, dim=0)), dim=0) if lin_x is not None else torch.unsqueeze(sample_x, dim=0)    
         x = lin_x
-        x = F.dropout(x, p=0.3, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.training)
         y = torch.squeeze(self.lin2(x))
-        # y = torch.sigmoid(y)*110 # Assures that the predictions are between 0 and 110
         return y
 
 # MLP module for simple comparison

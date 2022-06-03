@@ -36,7 +36,10 @@ parser.add_argument('--all_string',     type=str,   default='False',     help='P
 parser.add_argument('--conf_thr',       type=float, default=0.0,         help='The confidence threshold to staablish connections in STRING graphs.')
 parser.add_argument('--corr_thr',       type=float, default=0.8,         help='The correlation threshold to be used for definning graph connectivity.')
 # Model parameters ###################################################################################
-parser.add_argument('--model',          type=str,   default='baseline',  help='The model to be used.', choices= ['baseline', 'deepergcn', 'MLR', 'MLP', 'holzscheck_MLP'] )
+parser.add_argument('--model',          type=str,   default='baseline',  help='The model to be used.', choices= ['baseline', 'deepergcn', 'MLR', 'MLP', 'holzscheck_MLP', 'wang_MLP'] )
+parser.add_argument('--hidden_chann',   type=int,   default=8,           help='The number of hidden channels to use in the graph based models.')
+parser.add_argument('--dropout',        type=float, default=0.0,         help='Dropout rate to be used in models.')
+parser.add_argument('--final_pool',     type=str,   default=None,        help='Final pooling type over nodes to be used in graph based models.', choices= ['mean', 'max', 'add', 'none'])
 # Training parameters ################################################################################
 parser.add_argument('--exp_name',       type=str,   default='misc_test', help='Experiment name to be used for saving files. Default is misc_test. If set to -1 the name will be generated automatically.')
 parser.add_argument('--loss',           type=str,   default='mse',       help='Loss function to be used for training. Can be mse or l1.')
@@ -51,38 +54,40 @@ args_dict = vars(args)
 ######################################################################################################
 
 
-# ---------------------------------------- Important variable parameters ----------------------------------------------------#
-# Miscellaneous parameters --------------------------------------------------------------------------------------------------#
-torch.manual_seed(12345)                # Set torch manual seed                                                              #
-device = torch.device("cuda")           # Set cuda device                                                                    #
-# Dataset parameters --------------------------------------------------------------------------------------------------------#
-val_fraction = 0.2                      # Fraction of the data used for validation                                           #
-test_fraction = 0.2                     # Fraction of the data used for test                                                 #
-batch_size = args.batch_size            # Batch size parameter                                                               #
-norm = args.norm                        # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'          #
-log2_bool = args.log2 == 'True'         # Whether to make a Log2 transformation of the input data                            #
-filter_type = args.filter_type          # Filter applied to genes can be 'none', '1000var', '1000diff', '100var' or '100diff'#
-ComBat = args.ComBat == 'True'          # Whether to load ComBat batch corrected dataset. # TODO: Make single parameter      #
-ComBat_seq = args.ComBat_seq == 'True'  # Whether to load ComBat_seq batch corrected dataset                                 #
-# Graph parameters ----------------------------------------------------------------------------------------------------------#
-string = args.string == 'True'          # Whether to use STRING data to define graph                                         #
-conf_thr = args.conf_thr                # Confidence threshold to be used for defining graph connectivity with STRING        #
-all_string = args.all_string == 'True'  # Whether to use all STRING channels or just combined_score                          #
-coor_thr = args.corr_thr                # Spearman correlation threshold for declaring graph topology                        #
-p_value_thr = 0.05                      # P-value Spearman correlation threshold for declaring graph topology                #
-# Model parameters ----------------------------------------------------------------------------------------------------------#
-hidd = 8                                # Hidden channels parameter for baseline model                                       #
-model_type = args.model                 # Model type, can be 'baseline' or 'deepergcn' or 'MLR' or 'MLP' or 'holzscheck_MLP' #
-# Training parameters -------------------------------------------------------------------------------------------------------#
-experiment_name = args.exp_name         # Experiment name to define path were results are stored                             #
-loss_fn = args.loss                     # Loss function to be used for training. Can be mse or l1.                           #
-lr = args.lr                            # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)            #
-total_epochs = args.epochs              # Total number of epochs to train                                                    #
-train_eps = args.adv_e_train            # Adversarial epsilon for train                                                      #
-n_iters_apgd = args.n_iters_apgd        # Number of performed APGD iterations in train                                       #
-# Test parameters -----------------------------------------------------------------------------------------------------------#
-test_eps = args.adv_e_test              # Adversarial epsilon for test                                                       #
-# ---------------------------------------------------------------------------------------------------------------------------#
+# ---------------------------------------- Important variable parameters ---------------------------------------------------------------------------------#
+# Miscellaneous parameters -------------------------------------------------------------------------------------------------------------------------------#
+torch.manual_seed(12345)                                             # Set torch manual seed                                                              #
+device = torch.device("cuda")                                        # Set cuda device                                                                    #
+# Dataset parameters -------------------------------------------------------------------------------------------------------------------------------------#
+val_fraction = 0.2                                                   # Fraction of the data used for validation                                           #
+test_fraction = 0.2                                                  # Fraction of the data used for test                                                 #
+batch_size = args.batch_size                                         # Batch size parameter                                                               #
+norm = args.norm                                                     # Normalization method used in the input data. Can be 'raw', 'TPM' or 'TMM'          #
+log2_bool = args.log2 == 'True'                                      # Whether to make a Log2 transformation of the input data                            #
+filter_type = args.filter_type                                       # Filter applied to genes can be 'none', '1000var', '1000diff', '100var' or '100diff'#
+ComBat = args.ComBat == 'True'                                       # Whether to load ComBat batch corrected dataset. # TODO: Make single parameter      #
+ComBat_seq = args.ComBat_seq == 'True'                               # Whether to load ComBat_seq batch corrected dataset                                 #
+# Graph parameters ---------------------------------------------------------------------------------------------------------------------------------------#
+string = args.string == 'True'                                       # Whether to use STRING data to define graph                                         #
+conf_thr = args.conf_thr                                             # Confidence threshold to be used for defining graph connectivity with STRING        #
+all_string = args.all_string == 'True'                               # Whether to use all STRING channels or just combined_score                          #
+coor_thr = args.corr_thr                                             # Spearman correlation threshold for declaring graph topology                        #
+p_value_thr = 0.05                                                   # P-value Spearman correlation threshold for declaring graph topology                #
+# Model parameters ---------------------------------------------------------------------------------------------------------------------------------------#
+hidd = args.hidden_chann                                             # Hidden channels parameter for graph models                                         #
+model_type = args.model                                              # Model type                                                                         #
+dropout = args.dropout                                               # Dropout parameter for models                                                       #
+final_pool = args.final_pool                                         # Final pooling string for graph based models                                        #
+# Training parameters ------------------------------------------------------------------------------------------------------------------------------------#
+experiment_name = args.exp_name                                      # Experiment name to define path were results are stored                             #
+loss_fn = args.loss                                                  # Loss function to be used for training. Can be mse or l1.                           #
+lr = args.lr                                                         # Learning rate of the Adam optimizer (was changed from 0.001 to 0.00001)            #
+total_epochs = args.epochs                                           # Total number of epochs to train                                                    #
+train_eps = args.adv_e_train                                         # Adversarial epsilon for train                                                      #
+n_iters_apgd = args.n_iters_apgd                                     # Number of performed APGD iterations in train                                       #
+# Test parameters ----------------------------------------------------------------------------------------------------------------------------------------#
+test_eps = args.adv_e_test                                           # Adversarial epsilon for test                                                       #
+# --------------------------------------------------------------------------------------------------------------------------------------------------------#
 
 # All posible channels for STRING graphs
 str_all_channels = ['combined_score', 'textmining', 'database', 'experimental', 'coexpression', 'cooccurence', 'fusion', 'neighborhood']
@@ -163,23 +168,41 @@ test_loader = DataLoader(test_graph_list, batch_size=batch_size)
 
 # This handles the model type and the weight decay
 if model_type == "baseline":
-    model = BaselineModel(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], out_size=1).to(device)
+    model = BaselineModel(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1],
+                          out_size=1,
+                          dropout=dropout,
+                          final_pool=final_pool).to(device)
     weight_decay = 0.0
+
 elif model_type == "deepergcn":
-    model = DeeperGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1], input_node_channels=1, num_layers=5).to(device)
+    model = DeeperGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1],
+                      input_node_channels=1,
+                      num_layers=5,
+                      dropout=dropout,
+                      final_pool=final_pool).to(device)
     weight_decay = 0.0
+
 elif model_type == "MLR":
-    model = MLP(h_sizes=[torch_split['x_train'].shape[1]], out_size=1, init_weights=None, dropout=0.0).to(device)
+    model = MLP(h_sizes=[torch_split['x_train'].shape[1]], out_size=1, init_weights=None, dropout=dropout).to(device)
     weight_decay = 0.0
+
 elif model_type == "MLP":
-    model = MLP(h_sizes=[torch_split['x_train'].shape[1], 1000], out_size=1, init_weights=None, dropout=0.0).to(device)
+    model = MLP(h_sizes=[torch_split['x_train'].shape[1], 1000], out_size=1, init_weights=None, dropout=dropout).to(device)
     weight_decay = 0.0
+
 elif model_type == "holzscheck_MLP":
     model = MLP(h_sizes=[torch_split['x_train'].shape[1], 350, 350, 350, 50],
                 out_size=1, act="elu",
                 init_weights=torch.nn.init.kaiming_uniform_,
-                dropout=0.1).to(device)
+                dropout=dropout).to(device)
     weight_decay = 0.01
+
+elif model_type == "wang_MLP":
+    model = MLP(h_sizes=[torch_split['x_train'].shape[1], 256, 256, 32],
+                out_size=1, act="relu",
+                init_weights=torch.nn.init.kaiming_uniform_,
+                dropout=dropout).to(device)
+    weight_decay = 5e-4
 else:
     raise NotImplementedError
 
@@ -190,7 +213,7 @@ with open(train_log_path, 'a') as f:
     print_both(str(model), f)
 
 # Define optimizer and criterion
-optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=weight_decay)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
 # Handle multiple losses
 if loss_fn == 'mse':
