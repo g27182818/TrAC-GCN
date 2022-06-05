@@ -36,7 +36,7 @@ parser.add_argument('--all_string',     type=str,   default='False',     help='P
 parser.add_argument('--conf_thr',       type=float, default=0.0,         help='The confidence threshold to staablish connections in STRING graphs.')
 parser.add_argument('--corr_thr',       type=float, default=0.8,         help='The correlation threshold to be used for definning graph connectivity.')
 # Model parameters ###################################################################################
-parser.add_argument('--model',          type=str,   default='baseline',  help='The model to be used.', choices= ['baseline', 'deepergcn', 'MLR', 'MLP', 'holzscheck_MLP', 'wang_MLP'] )
+parser.add_argument('--model',          type=str,   default='baseline',  help='The model to be used.', choices= ['baseline', 'deepergcn', 'MLR', 'MLP', 'holzscheck_MLP', 'wang_MLP', 'baseline_pool', 'graph_head', 'trac_gcn'] )
 parser.add_argument('--hidden_chann',   type=int,   default=8,           help='The number of hidden channels to use in the graph based models.')
 parser.add_argument('--dropout',        type=float, default=0.0,         help='Dropout rate to be used in models.')
 parser.add_argument('--final_pool',     type=str,   default=None,        help='Final pooling type over nodes to be used in graph based models.', choices= ['mean', 'max', 'add', 'none'])
@@ -172,6 +172,28 @@ if model_type == "baseline":
                           out_size=1,
                           dropout=dropout,
                           final_pool=final_pool).to(device)
+    weight_decay = 0.0
+
+elif model_type == "graph_head":
+    model = GraphHead(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1],
+                      out_size=1,
+                      dropout=dropout,
+                      final_pool=final_pool).to(device)
+    weight_decay = 0.01
+
+elif model_type == "trac_gcn":
+    model = TracGCN(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1],
+                      out_size=1,
+                      dropout=dropout,
+                      final_pool=final_pool).to(device)
+    weight_decay = 0.01
+
+elif model_type == "baseline_pool":
+    model = BaselineModelPool(hidden_channels=hidd, input_size=torch_split['x_train'].shape[1],
+                              out_size=1,
+                              dropout=dropout,
+                              final_pool=final_pool,
+                              cluster_num=1014).to(device)
     weight_decay = 0.0
 
 elif model_type == "deepergcn":

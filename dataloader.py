@@ -92,7 +92,7 @@ def read_shokhirev(norm, log2, filter_type = 'none', ComBat = False, ComBat_seq 
     meta = meta.set_index('SRR.ID')
 
     # Get ordered list of genes
-    gene_list = expression.columns.tolist()
+    gene_names = expression.columns.tolist()
     # Declare numpy variables
     x_np = expression.values
     y_np = meta['Age'].values
@@ -403,6 +403,7 @@ def load_dataset(norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_th
     # Get x_np and y_np from read_shokhirev()
     print('Reading, transforming and splitting data...')
     x_np, y_np, gene_names = read_shokhirev(norm, log2, filter_type = filter_type, ComBat = ComBat, ComBat_seq = ComBat_seq)
+
     # Split dataset using split_data()
     split_dict = split_data(x_np, y_np, val_frac = val_frac, test_frac = test_frac)
 

@@ -130,6 +130,7 @@ def test(loader, model, device, optimizer=None, adversarial=False, attack=None, 
             glob_true = np.hstack((glob_true, true)) if glob_true.size else true
             # Update counter
             count += 1
+
     # Results dictionary declaration and metrics computation
     metric_result = {'MAE' : sklearn.metrics.mean_absolute_error(glob_true, glob_pred),
                      'RMSE': sklearn.metrics.mean_squared_error(glob_true, glob_pred, squared=False),

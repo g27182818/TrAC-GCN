@@ -2,7 +2,8 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Linear
 from torch.nn import LayerNorm, Linear, ReLU
-from torch_geometric.nn import GCNConv, ChebConv, DeepGCNLayer, GENConv
+import torch_geometric
+from torch_geometric.nn import GCNConv, ChebConv, DeepGCNLayer, GENConv, DenseGCNConv
 import torch.nn as nn
 
 # TODO: Propose diferent models
@@ -28,6 +29,9 @@ class BaselineModel(torch.nn.Module):
         # Convolution definitions
         self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
+        # Code for GCN test
+        # self.conv1 = GCNConv(1, hidden_channels, improved=True, add_self_loops=True)
+        # self.conv2 = GCNConv(hidden_channels, hidden_channels, improved=True, add_self_loops=True)
         self.lin1 = Linear(self.lin_input_size, 1000)
         self.lin2 = Linear(1000, self.out_size)
     def forward(self, x, edge_index, edge_attr, batch):
@@ -40,6 +44,7 @@ class BaselineModel(torch.nn.Module):
         :return: (torch.Tensor) Matrix of logits, each row corresponds with a patient in the batch and each column represent a
                  cancer or normal type logit.
         """
+        # TODO: Include edge attributes in convolutions
         x = self.conv1(x, edge_index)
         x = x.relu()
         x = self.conv2(x, edge_index)
@@ -63,8 +68,7 @@ class BaselineModel(torch.nn.Module):
         x = torch.clamp(x, 0, 110) # Assures that the predictions are between 0 and 110
         return x
 
-
-class BaselineModelPool(torch.nn.Module):
+class TracGCN(torch.nn.Module):
     def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
         """
         Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
@@ -73,7 +77,7 @@ class BaselineModelPool(torch.nn.Module):
         :param dropout: (Float) Dropout probability.
         :param final_pool: (str) Final pooling type over nodes.
         """
-        super(BaselineModel, self).__init__()
+        super(TracGCN, self).__init__()
         # Class atributes
         self.hidd = hidden_channels
         self.input_size = input_size
@@ -82,11 +86,19 @@ class BaselineModelPool(torch.nn.Module):
         self.final_pool = final_pool
         self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
         # Convolution definitions
-        self.conv1_embed = ChebConv(1, hidden_channels, K=5)
-        self.conv1_pool = ChebConv(hidden_channels, hidden_channels, K=5)
+        self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
-        self.lin1 = Linear(self.lin_input_size, 1000)
-        self.lin2 = Linear(1000, self.out_size)
+        
+        self.gcn_lin1 = Linear(self.lin_input_size, 1000)
+        self.gcn_lin2 = Linear(1000, 50)
+
+        self.holzscheck_MLP = MLP(h_sizes=[self.input_size, 350, 350, 350],
+                                  out_size=50, act="elu",
+                                  init_weights=torch.nn.init.kaiming_uniform_,
+                                  dropout=self.dropout)
+
+        self.out = Linear(100, self.out_size)
+    
     def forward(self, x, edge_index, edge_attr, batch):
         """
         Performs a forward pass.
@@ -97,6 +109,82 @@ class BaselineModelPool(torch.nn.Module):
         :return: (torch.Tensor) Matrix of logits, each row corresponds with a patient in the batch and each column represent a
                  cancer or normal type logit.
         """
+        x_mlp = x 
+
+        # TODO: Include edge attributes in convolutions
+        x = self.conv1(x, edge_index)
+        x = x.relu()
+        x = self.conv2(x, edge_index)
+        x = x.relu()
+        if self.final_pool == 'none':
+            pass
+        elif self.final_pool == 'mean':
+            # Get mean from each node
+            x = x.mean(dim=1)
+        elif self.final_pool == 'max':
+            x = torch.max(x, dim=1)[0]
+        elif self.final_pool == 'add':
+            x = x.sum(dim=1)
+        else:
+            raise ValueError('Invalid final pooling type')
+
+        x = self.gcn_lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.lin_input_size)))
+        x = x.relu()
+        x = torch.squeeze(self.gcn_lin2(x))
+        
+        # Final graph representation
+        x = x.relu()
+
+        # Holzscheck MLP
+        x_mlp = self.holzscheck_MLP(x_mlp, edge_index, edge_attr, batch)
+
+        # Concatenate
+        x = torch.cat((x, x_mlp), dim=1)
+
+        x = F.dropout(x, p=self.dropout, training=self.training) # Added dropout
+        
+        # Output layer
+        x = torch.squeeze(self.out(x))
+
+        x = torch.clamp(x, 0, 110) # Assures that the predictions are between 0 and 110
+        return x
+
+class GraphHead(torch.nn.Module):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
+        """
+        Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
+        :param hidden_channels: (Int) Hidden channels in every layer.
+        :param out_size: (Int) Number of output classes.
+        :param dropout: (Float) Dropout probability.
+        :param final_pool: (str) Final pooling type over nodes.
+        """
+        super(GraphHead, self).__init__()
+        # Class atributes
+        self.hidd = hidden_channels
+        self.input_size = input_size
+        self.out_size = out_size
+        self.dropout = dropout
+        self.final_pool = final_pool
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        # Convolution definitions
+        self.conv1 = ChebConv(1, hidden_channels, K=5)
+        self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
+
+        self.lin1 = Linear(self.lin_input_size, 1000)
+        self.lin2 = Linear(1000, 50)
+        self.lin3 = Linear(50, self.out_size)
+
+    def forward(self, x, edge_index, edge_attr, batch):
+        """
+        Performs a forward pass.
+        :param x: (torch.Tensor) Input features of each node.
+        :param edge_index: (torch.Tensor) Edges indicating graph connectivity.
+        :param edge_attr: (torch.Tensor) Edge attributes.
+        :param batch: (torch.Tensor) Batch vector indicating the correspondence of each node in the batch.
+        :return: (torch.Tensor) Matrix of logits, each row corresponds with a patient in the batch and each column represent a
+                 cancer or normal type logit.
+        """
+        # TODO: Include edge attributes in convolutions
         x = self.conv1(x, edge_index)
         x = x.relu()
         x = self.conv2(x, edge_index)
@@ -114,6 +202,66 @@ class BaselineModelPool(torch.nn.Module):
             raise ValueError('Invalid final pooling type')
 
         x = self.lin1(torch.reshape(x, (torch.max(batch).item() + 1, self.lin_input_size)))
+        x = x.relu()
+        x = self.lin2(x)
+        x = x.relu()
+
+        x = F.dropout(x, p=self.dropout, training=self.training) # Added dropout
+        x = torch.squeeze(self.lin3(x))
+        x = torch.clamp(x, 0, 110) # Assures that the predictions are between 0 and 110
+        return x
+
+
+
+class BaselineModelPool(torch.nn.Module):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none', cluster_num=1014):
+
+        super(BaselineModelPool, self).__init__()
+        # Class atributes
+        self.hidd = hidden_channels
+        self.input_size = input_size
+        self.out_size = out_size
+        self.dropout = dropout
+        self.final_pool = final_pool
+        self.cluster_num = cluster_num
+        self.lin_input_size = self.cluster_num * self.hidd if final_pool == 'none' else self.cluster_num
+        # Convolution definitions
+        self.conv1_embed = DenseGCNConv(1, hidden_channels, improved=True)
+        self.conv1_pool = DenseGCNConv(1, self.cluster_num, improved=True)
+        self.conv2_embed = DenseGCNConv(hidden_channels, hidden_channels, improved=True)
+        self.lin1 = Linear(self.lin_input_size, 1000)
+        self.lin2 = Linear(1000, self.out_size)
+
+    def forward(self, x, edge_index, edge_attr, batch):
+        adj = torch_geometric.utils.to_dense_adj(edge_index = edge_index[:, :edge_index.shape[1]//int(batch.max()+1)],
+                                                 edge_attr= torch.squeeze(edge_attr[:edge_attr.shape[0]//int(batch.max()+1)]),
+                                                 max_num_nodes=self.input_size)
+
+        x = torch_geometric.utils.to_dense_batch(x, batch)[0]
+        s = self.conv1_pool(x, adj, add_loop=True)
+        x = self.conv1_embed(x, adj, add_loop=True)
+        x = x.relu()
+
+        x, adj, l1, e1 = torch_geometric.nn.dense_diff_pool(x, adj, s)
+        x = self.conv2_embed(x, adj, add_loop=True)
+        x = x.relu()
+
+        # Flatten second and third dimension
+        x = torch.reshape(x, (x.shape[0], -1))
+        
+        if self.final_pool == 'none':
+            pass
+        elif self.final_pool == 'mean':
+            # Get mean from each node
+            x = x.mean(dim=1)
+        elif self.final_pool == 'max':
+            x = torch.max(x, dim=1)[0]
+        elif self.final_pool == 'add':
+            x = x.sum(dim=1)
+        else:
+            raise ValueError('Invalid final pooling type')
+
+        x = self.lin1(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout, training=self.training) # Added dropout
         x = torch.squeeze(self.lin2(x))
