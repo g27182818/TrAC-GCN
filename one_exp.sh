@@ -18,7 +18,7 @@ HIDDEN_CHANN=8
 DROPOUT=0.5
 FINAL_POOL=none
 # Training parameters #####################################
-EXP_NAME=trac_gcn_final_batch_10
+EXP_NAME=trac_gcn_final_batch_10_1
 LOSS=mse
 LR=0.00005
 EPOCHS=100

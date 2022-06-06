@@ -1,15 +1,14 @@
+# Generic libraries
+import numpy as np
+import pandas as pd
+import os
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
+import argparse
 # Specific imports
 from models import *
 from dataloader import *
 from utils import *
-# Generic libraries
-import numpy as np
-import os
-import pickle
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
-import argparse
-import glob
 # Set matplotlib option to plot while in screen
 import matplotlib
 matplotlib.use('Agg')
@@ -23,7 +22,7 @@ np.random.seed(1234)
 
 
 # Parser to specify the normalization method to perform analysis #####################################
-parser = argparse.ArgumentParser(description='Code for TrAC-GCN implementation.')
+parser = argparse.ArgumentParser(description='Code for TrAC-GCN test implementation.')
 # Dataset parameters ##################################################################################
 parser.add_argument('--norm',           type=str,   default="tpm",       help='The normalization method to be loaded via files. Can be raw, tpm or tmm.')
 parser.add_argument('--log2',           type=str,   default='True',      help='Parameter indicating if a log2 transformation is done under input data.')
@@ -93,42 +92,16 @@ test_eps = args.adv_e_test                                           # Adversari
 str_all_channels = ['combined_score', 'textmining', 'database', 'experimental', 'coexpression', 'cooccurence', 'fusion', 'neighborhood']
 channels_string = str_all_channels if all_string else ['combined_score']
 
-# Handle automatic generation of experiment name
-if experiment_name == '-1':
-    # Handle different batch correction methods
-    if ComBat:
-        batch_str = '_batch_corr_ComBat_'
-    elif ComBat_seq:
-        batch_str = '_batch_corr_ComBat_seq_'
-    else:
-        batch_str = '_batch_corr_none_'
-    # Define experiment name based on parameters
-    experiment_name = norm + batch_str + "_" + filter_type + "_filtering_coor_thr=" + str(coor_thr)
 
-# TODO: Change the result saving pipeline to a file tree
 # Declare results path
 results_path = os.path.join("Results", experiment_name)
-# Declare log path
-train_log_path = os.path.join(results_path, "TRAINING_LOG.txt")
-# Declare metric dicts path
-metrics_log_path = os.path.join(results_path, "metric_dicts.pickle")
-# Declare path to save performance training plot
-train_performance_fig_path = os.path.join(results_path, "training_performance.png")
-# Declare path to save val set predictions plot
-val_prediction_fig_path = os.path.join(results_path, "val_prediction.png")
 # Declare path to save best model
 best_model_path = os.path.join(results_path, "best_model.pt")
+# Declare path to save a_plot 
+a_plot_path = os.path.join(results_path, "a_plot.png")
+# Declare path to save gene ranking csv
+gene_ranking_path = os.path.join(results_path, "gene_ranking.csv")
 
-# Create results directory
-if not os.path.isdir(results_path):
-    os.makedirs(results_path)
-
-# Print experiment parameters
-with open(train_log_path, 'a') as f:
-    print_both('Argument list to program',f)
-    print_both('\n'.join(['--{0} {1}'.format(arg, args_dict[arg])
-                    for arg in args_dict]),f)
-    print_both('\n\n',f)
 
 # Load data
 dataset_info = load_dataset(norm=norm, log2=log2_bool, corr_thr=coor_thr, p_thr=p_value_thr, force_compute=False,
@@ -237,10 +210,8 @@ else:
     raise NotImplementedError
 
 # Print to console model definition
-# Print experiment parameters
-with open(train_log_path, 'a') as f:
-    print_both("The model definition is:", f)
-    print_both(str(model), f)
+print("The model definition is:")
+print(str(model))
 
 # Define optimizer and criterion
 optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -253,124 +224,56 @@ elif loss_fn == 'l1':
 else:
     raise NotImplementedError
 
+# Load best model dicts
+total_saved_dict = torch.load(best_model_path)
+model_dict = total_saved_dict['model_state_dict']
+optimizer_dict = total_saved_dict['optimizer_state_dict']
 
-# Decide whether to train and test adversarially or not
-train_adversarial = train_eps > 0.0
-test_adversarial = train_eps > 0.0
+# Load state dicts to model and optimizer
+model.load_state_dict(model_dict)
+optimizer.load_state_dict(optimizer_dict)
 
-# Lists declarations
-train_metric_lst = []
-val_metric_lst = []
-adv_val_metric_lst = []
-loss_list = []
+# Put model in eval mode
+model.eval()
 
-# Best metric variables declaration
-best_train_metric = {'MAE': None, 'RMSE': None, 'R^2': None}
-best_val_metric = {'MAE': 1e10, 'RMSE': None, 'R^2': None}
-best_adv_val_metric = {'MAE': None, 'RMSE': None, 'R^2': None}
+metric_result, glob_delta, glob_true, glob_pred = test_and_get_attack(val_loader, model, device,
+                                                                        optimizer=optimizer,
+                                                                        attack=pgd_linf, criterion=criterion,
+                                                                        epsilon=test_eps, n_iter=20, alpha=0.001)
 
+# abs_sum_pert = np.abs(glob_delta).sum(axis=0)
+sum_pert = glob_delta.sum(axis=0)
 
-# Train/test cycle
-for epoch in range(total_epochs):
-    print('-----------------------------------------')
-    print("Epoch " + str(epoch+1) + ":")
-    print('                                         ')
-    print("Start training:")
-    # Train one epoch adversarially
-    if train_adversarial:
-        loss = train(train_loader, model, device, criterion, optimizer,
-                        adversarial=True, attack=apgd_graph, epsilon=train_eps,
-                        n_iter=n_iters_apgd)
-    # Train one epoch normally
-    else:
-        loss = train(train_loader, model, device, criterion, optimizer)
+abs_array = np.abs(sum_pert)
+# get sorted indexes in descending order
+sorted_indexes = abs_array.argsort()[::-1]
+print(sorted_indexes)
 
-    # Obtain test metrics for each epoch in all groups
-    print('                                         ')
-    print("Obtaining train metrics:")
-    train_metrics = test(train_loader, model, device)
+gene_names = dataset_info['gene_names']
+gene_rank = np.array(gene_names)[sorted_indexes]
+sum_pert_ranked = sum_pert[sorted_indexes]
 
-    print('                                         ')
-    print("Obtaining val metrics:")
-    val_metrics = test(val_loader, model, device)
+# Print top 10 genes and their perturbations as a prety table
+print("Top 10 Predictor Genes:")
+[print(gene_rank[i], round(sum_pert_ranked[i], 3)) for i in range(10)]
 
-    # Handle if adversarial testing is required
-    if test_adversarial:
-        print('                                         ')
-        print("Obtaining adversarial val metrics:")
-        # This test is set to use 50 iterations of APGD
-        adv_val_metrics = test(val_loader, model, device,
-                                optimizer=optimizer, adversarial=True,
-                                attack=apgd_graph, criterion=criterion,
-                                epsilon=test_eps, n_iter=50)
+# Add gene_rank and sum_pert_ranked to pandas dataframe
+df_rank = pd.DataFrame(data=np.array([gene_rank, sum_pert_ranked]).T, columns=['gene', 'a'])
+# add column at the beginning of the dataframe with the index called rank
+df_rank.insert(0, 'rank', df_rank.index + 1)
 
-    # If adversarial testing is not required adversarial test metrics are the same normal metrics
-    else:
-        adv_val_metrics = val_metrics
-
-    # Add epoch information to the dictionaries
-    train_metrics["epoch"] = epoch
-    val_metrics["epoch"] = epoch
-    adv_val_metrics["epoch"] = epoch
-
-    # Append data to list
-    train_metric_lst.append(train_metrics)
-    val_metric_lst.append(val_metrics)
-    adv_val_metric_lst.append(adv_val_metrics)
-    loss_list.append(loss.cpu().detach().numpy())
-
-    # Print performance
-    print_epoch(train_metrics, val_metrics, adv_val_metrics, loss, epoch, train_log_path)
-
-    # Save model if it is the best so far
-    if val_metrics['MAE'] < best_val_metric['MAE']:
-        # Update best metric variables
-        best_val_metric = val_metrics.copy()
-        best_train_metric = train_metrics.copy()
-        best_adv_val_metric = adv_val_metrics.copy()
-        # Save best model until now
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss},
-            best_model_path)
-
-# Save metrics dicts
-complete_metric_dict = {"train": train_metric_lst,
-                        "test": val_metric_lst,
-                        "adv_test": adv_val_metric_lst,
-                        "loss": loss_list}
-
-with open(metrics_log_path, 'wb') as f:
-    pickle.dump(complete_metric_dict, f)
-
-# Generate training performance plot and save it to train_performance_fig_path
-plot_training(train_metric_lst, val_metric_lst, adv_val_metric_lst, loss_list, train_performance_fig_path)
-
-# Get best model from results_path/best_model.pt
-best_model_dict = torch.load(os.path.join(results_path, "best_model.pt"))
-model.load_state_dict(best_model_dict['model_state_dict'])
-
-# Print best performance on val set to log
-with open(train_log_path, 'a') as f:
-    print_both('-----------------------------------------',f)
-    print_both("Best MAE performance:",f)
-print_epoch(best_train_metric,
-            best_val_metric, 
-            best_adv_val_metric, 
-            best_model_dict['loss'], 
-            best_model_dict['epoch'],
-            train_log_path)
-
-# Generate val predictions plot and save it to val_predictions_fig_path
-plot_predictions(model, device, val_loader, val_prediction_fig_path)
+# Save dataframe to csv
+df_rank.to_csv(gene_ranking_path, index=False)
 
 
-# TODO: Do a 'just_plot' option to just plot the training performance and not train the model
-
-
-
-
-
+# Make bar plot of the data
+plt.figure()
+plt.plot(range(len(sum_pert)), sum_pert, 'ok', markersize=2)
+plt.grid('on')
+plt.xlim(0, len(sum_pert))
+plt.xlabel('Gene', fontsize=16)
+plt.ylabel('$a($Gene$)$', fontsize=16)
+plt.title('$a($Gene$)$', fontsize=20)
+plt.show()
+plt.savefig(a_plot_path, dpi=300)
 

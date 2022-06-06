@@ -137,8 +137,69 @@ def test(loader, model, device, optimizer=None, adversarial=False, attack=None, 
                      'R^2' : sklearn.metrics.r2_score(glob_true, glob_pred)}
     return metric_result
 
+def test_and_get_attack(loader, model, device, optimizer=None, attack=None, criterion=None, **kwargs):
+    
+    # Put model in evaluation mode
+    model.eval()
 
-def apgd_graph(model, x, y, edge_index, batch, criterion, epsilon=0.01, **kwargs):
+    # Global true tensor
+    glob_true = np.array([])
+    # Global probability tensor
+    glob_pred = np.array([])
+    # Global delta array
+    glob_delta = np.array([])
+
+    count = 1
+    # Computing loop
+    with tqdm(loader, unit="batch") as t_loader:
+        for data in t_loader:  # Iterate in batches over the training/test dataset.
+            t_loader.set_description(f"Batch {count}")
+            # Get the inputs of the model (x) and the groundtruth (y)
+            input_x, input_y = data.x.to(device), data.y.to(device)
+            # Handle the adversarial attack
+            delta = attack(model, input_x, input_y, data.edge_index.to(device), data.edge_attributes.to(device), data.batch.to(device), criterion, **kwargs)
+            optimizer.zero_grad()
+            input_x = input_x+delta
+
+            # Get the model predictions
+            pred = model(input_x, data.edge_index.to(device), data.edge_attributes.to(device), data.batch.to(device)).cpu().detach().numpy()
+            true = input_y.cpu().numpy()
+            # Stack cases with previous ones
+            glob_pred = np.hstack([glob_pred, pred]) if glob_pred.size else pred
+            glob_true = np.hstack((glob_true, true)) if glob_true.size else true
+            # Stack deltas with previous ones
+            delta = torch.reshape(delta, (data.batch.max()+1, -1))
+            glob_delta = np.vstack([glob_delta, delta.cpu().detach().numpy()]) if glob_delta.size else delta.cpu().detach().numpy()
+            # Update counter
+            count += 1
+
+    # Results dictionary declaration and metrics computation
+    metric_result = {'MAE' : sklearn.metrics.mean_absolute_error(glob_true, glob_pred),
+                     'RMSE': sklearn.metrics.mean_squared_error(glob_true, glob_pred, squared=False),
+                     'R^2' : sklearn.metrics.r2_score(glob_true, glob_pred)}
+
+    return metric_result, glob_delta, glob_true, glob_pred            
+
+def pgd_linf(model, X, y, edge_index, edge_attributes, batch, criterion, epsilon=0.01, alpha=0.001, n_iter=20, randomize=True):
+    # Handle starting point randomization
+    if randomize:
+        delta = torch.rand_like(X, requires_grad=True)
+        delta.data = delta.data * 2 * epsilon - epsilon
+    else:
+        delta = torch.zeros_like(X, requires_grad=True)
+
+    # Optimization cycle of delta
+    for t in range(n_iter):
+        loss = criterion(model(X + delta, edge_index, edge_attributes, batch), y)
+        loss.backward()
+        delta.data = (delta + alpha * delta.grad.detach().sign()).clamp(-epsilon, epsilon)
+        delta.grad.zero_()
+    return delta.detach()
+
+
+
+# TODO: Adapt this kind of attack to work with a regression problem
+def apgd_graph(model, x, y, edge_index, edge_attributes, batch, criterion, epsilon=0.01, **kwargs):
     """
     Construct AutoPGD adversarial examples in L_inf ball over the examples X (IMPORTANT: It returns the perturbation
     (i.e. delta)). This is a slight modification of the AutoPGD implementation presented in
@@ -158,7 +219,7 @@ def apgd_graph(model, x, y, edge_index, batch, criterion, epsilon=0.01, **kwargs
     # Perform needed reshape
     x = torch.reshape(x, (torch.max(batch).item() + 1, -1))
     # Compute the imported apgd function
-    optim_x = apgd(model=model, inputs=x, labels=y, edge_index=edge_index, batch_vec=batch,
+    optim_x = apgd(model=model, inputs=x, labels=y, edge_index=edge_index, edge_attributes=edge_attributes, batch_vec=batch,
                    give_crit=True, crit=criterion, eps=epsilon, norm=float('inf'), **kwargs)
     # Obtain perturbation
     delta = optim_x-x

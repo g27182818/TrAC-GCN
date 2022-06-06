@@ -14,6 +14,7 @@ def apgd(model: nn.Module,
          inputs: Tensor,
          labels: Tensor,
          edge_index: Tensor,
+         edge_attributes: Tensor,
          batch_vec: Tensor,
          eps: Union[float, Tensor],
          norm: float,
@@ -88,7 +89,7 @@ def apgd(model: nn.Module,
     # Modified by Gabriel
     apgd_attack = partial(_apgd, model=model, norm=norm, targeted=targeted, loss_function=loss_function,
                           give_crit=give_crit, crit=crit, eot_iter=eot_iter, rho=rho,
-                          edge_index=edge_index, batch_vec=batch_vec)
+                          edge_index=edge_index, edge_attributes=edge_attributes, batch_vec=batch_vec)
 
     if best_loss:
         loss = torch.full_like(adv_found, -float('inf'), dtype=torch.float)
@@ -356,6 +357,7 @@ def _apgd(model: nn.Module,
           inputs: Tensor,
           labels: Tensor,
           edge_index: Tensor,
+          edge_attributes: Tensor,
           batch_vec: Tensor,
           eps: Tensor,
           norm: float,
@@ -410,7 +412,7 @@ def _apgd(model: nn.Module,
     grad = torch.zeros_like(inputs)
     for _ in range(eot_iter):
         #breakpoint()
-        logits = model(torch.reshape(x_adv, (-1, 1)), edge_index, batch_vec)
+        logits = model(torch.reshape(x_adv, (-1, 1)), edge_index, edge_attributes, batch_vec)
         loss_indiv = multiplier * criterion_indiv(logits, labels)
         grad.add_(torch.autograd.grad(loss_indiv.sum(), x_adv, only_inputs=True)[0])
 

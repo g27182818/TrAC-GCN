@@ -95,18 +95,6 @@ test_eps = args.adv_e_test                                           # Adversari
 str_all_channels = ['combined_score', 'textmining', 'database', 'experimental', 'coexpression', 'cooccurence', 'fusion', 'neighborhood']
 channels_string = str_all_channels if all_string else ['combined_score']
 
-# Handle automatic generation of experiment name
-if experiment_name == '-1':
-    # Handle different batch correction methods
-    if ComBat:
-        batch_str = '_batch_corr_ComBat_'
-    elif ComBat_seq:
-        batch_str = '_batch_corr_ComBat_seq_'
-    else:
-        batch_str = '_batch_corr_none_'
-    # Define experiment name based on parameters
-    experiment_name = norm + batch_str + "_" + filter_type + "_filtering_coor_thr=" + str(coor_thr)
-
 # Load data
 dataset_info = load_dataset(norm=norm, log2=log2_bool, corr_thr=coor_thr, p_thr=p_value_thr, force_compute=False,
                             val_frac=val_fraction, test_frac=test_fraction, filter_type=filter_type,
