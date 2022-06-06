@@ -5,6 +5,8 @@ from torch.nn import LayerNorm, Linear, ReLU
 import torch_geometric
 from torch_geometric.nn import GCNConv, ChebConv, DeepGCNLayer, GENConv, DenseGCNConv
 import torch.nn as nn
+import math
+from torch.nn import Parameter
 
 # TODO: Propose diferent models
 
@@ -363,6 +365,7 @@ class MLP(torch.nn.Module):
         self.dropout = dropout
         # Sizes definition
         self.hidd_sizes = h_sizes
+        self.out_size = out_size
         
         # Activation function
         if self.activation_str == "relu":
@@ -383,7 +386,7 @@ class MLP(torch.nn.Module):
             if self.init_weights is not None:
                 self.hidden[-1].weight.data = self.init_weights(self.hidden[-1].weight.data)
         # Output layer
-        self.out = nn.Linear(h_sizes[-1], out_size)
+        self.out = nn.Linear(h_sizes[-1], self.out_size)
         if self.init_weights is not None:
             self.out.weight.data = self.init_weights(self.out.weight.data)
         
@@ -411,4 +414,81 @@ class MLP(torch.nn.Module):
 
         # Output layer. This is the only one used in multinomial logistic regression
         output = torch.squeeze(self.out(x))
+        return output
+
+# Hadamard product operator to use in the deep feature selection model. This implementation is in the paper oficial github
+# link: https://github.com/cyustcer/Deep-Feature-Selection/tree/ce7ce301b5a62783c79511c8d296463f0f46a0d2
+# DOI: 10.13140/2.1.3673.6327
+class DotProduct(torch.nn.Module):
+    def __init__(self, in_features):
+        super(DotProduct, self).__init__()
+        self.in_features = in_features
+        self.out_features = in_features
+        self.weight = Parameter(torch.Tensor(in_features))
+        self.reset_parameters()
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(0))
+        self.weight.data.uniform_(-stdv, stdv)
+        #self.weight.data.normal_(0, stdv)
+    def forward(self, input):
+        output_np = input * self.weight.expand_as(input)
+        return output_np
+    def __ref__(self):
+        return self.__class__.__name__ + '(' + 'in_features=' + str(self.in_features) + ', out_features=' + str(self.out_features) + ')'
+
+### Nonlinear classification model
+class DFS(torch.nn.Module):
+    def __init__(self, h_sizes, out_size, act="relu", dropout=0.0):
+        super(DFS, self).__init__()
+
+        # Activation function definition
+        self.activation_str = act
+        # Dropout rate
+        self.dropout = dropout
+        # Sizes definition
+        self.hidd_sizes = h_sizes
+        self.out_size = out_size
+
+        # Activation function
+        if self.activation_str == "relu":
+            self.act = F.relu
+        elif self.activation_str == "sigmoid":
+            self.act = F.sigmoid
+        elif self.activation_str == "elu":
+            self.act = F.elu
+        elif self.activation_str == "gelu":
+            self.act = F.gelu
+        else:
+            raise ValueError("Activation function not supported")
+        
+        self.select_layer = DotProduct(self.hidd_sizes[0]) # Selection Layer
+
+        # Hidden layers
+        self.hidden = nn.ModuleList()
+        for k in range(len(h_sizes) - 1):
+            self.hidden.append(nn.Linear(h_sizes[k], h_sizes[k + 1]))
+
+        # Output layer
+        self.out = nn.Linear(h_sizes[-1], self.out_size)
+        
+
+	
+    def forward(self, x, edge_index, edge_attr, batch):
+        # Resahpe x
+        x = torch_geometric.utils.to_dense_batch(x, batch)[0]
+        x = torch.squeeze(x, dim=2)
+        # Pass through selection layer
+        x = self.select_layer(x)
+
+        # Feedforward
+        for layer in self.hidden:
+            x = self.act(layer(x))
+        
+        # Apply dropout
+        if self.dropout > 0:
+            x = F.dropout(x, p=self.dropout, training=self.training)
+
+        # Output layer. This is the only one used in multinomial logistic regression
+        output = torch.squeeze(self.out(x))
+
         return output
