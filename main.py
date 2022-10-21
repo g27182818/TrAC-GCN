@@ -39,7 +39,7 @@ parser.add_argument('--corr_thr',       type=float, default=0.8,         help='T
 parser.add_argument('--model',          type=str,   default='baseline',  help='The model to be used.', choices= ['baseline', 'deepergcn', 'MLR', 'MLP', 'holzscheck_MLP', 'wang_MLP', 'baseline_pool', 'graph_head', 'trac_gcn', 'DFS'] )
 parser.add_argument('--hidden_chann',   type=int,   default=8,           help='The number of hidden channels to use in the graph based models.')
 parser.add_argument('--dropout',        type=float, default=0.0,         help='Dropout rate to be used in models.')
-parser.add_argument('--final_pool',     type=str,   default=None,        help='Final pooling type over nodes to be used in graph based models.', choices= ['mean', 'max', 'add', 'none'])
+parser.add_argument('--final_pool',     type=str,   default='none',        help='Final pooling type over nodes to be used in graph based models.', choices= ['mean', 'max', 'add', 'none'])
 # Training parameters ################################################################################
 parser.add_argument('--exp_name',       type=str,   default='misc_test', help='Experiment name to be used for saving files. Default is misc_test. If set to -1 the name will be generated automatically.')
 parser.add_argument('--loss',           type=str,   default='mse',       help='Loss function to be used for training. Can be mse or l1.')
