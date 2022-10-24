@@ -16,8 +16,8 @@ np.random.seed(1234)
 
 def read_shokhirev(norm, log2, filter_type = 'none', ComBat = False, ComBat_seq = False):
     """
-    This function loads one of 3 csv files of the Shokirev dataset proposed in DOI: 10.1111/acel.13280
-    it performs a log2 transform if it is indicated and shuffles the data.
+    This function loads one of 3 csv files of the Shokirev dataset proposed in DOI: 10.1111/acel.13280,
+    performs a log2 transform if it is indicated, and shuffles the data. It also returns the metadata for all the dataset
 
     Parameters
     ----------
@@ -234,14 +234,14 @@ def compute_graph_shokirev(x, corr_thr, norm, log2, p_thr=0.05, filter_type = 'n
             print_both('Total amount of edges: ' + str(edge_attributes.shape[0]), f)
             print_both('Average graph degree: ' + str(round(edge_attributes.shape[0]/x.shape[1], 3)), f)
             print_both('Is the graph connected: ' + str(connected_bool), f)
-            print_both('List of connected componnents size: ' + str(sorted(length_connected, reverse=True)), f)
+            print_both('List of connected components size: ' + str(sorted(length_connected, reverse=True)), f)
 
     return edge_indices, edge_attributes
 
-# Function to get a graph using srting data
+# Function to get a graph using string data
 def get_string_graph(path, gene_list, conf_thr = 0.0, channels:list = ['combined_score']):
     """
-    Get a graph from string dtabase matrix thresholded by the conf_thr and with the channels specified.
+    Get a graph from string database matrix thresholded by the conf_thr and with the channels specified.
     Parameters
     ----------
     path : str
@@ -257,7 +257,7 @@ def get_string_graph(path, gene_list, conf_thr = 0.0, channels:list = ['combined
         # Check if json file exists
         if not os.path.exists(os.path.join(path,'ensp_2_hugo_mapper.json')):
             # Get Biomart server
-            server = BiomartServer( "http://uswest.ensembl.org/biomart" )
+            server = BiomartServer("http://uswest.ensembl.org/biomart" )
             # Get human dataset
             dataset = server.datasets["hsapiens_gene_ensembl"]
             # Search for ENSPs and get the corresponding Hugo names
