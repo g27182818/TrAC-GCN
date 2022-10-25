@@ -169,6 +169,7 @@ class ShokhirevDataset:
                 exp_frac_df[batch] = (batch_expression > min_exp).sum(axis=0) / batch_expression.shape[0]
 
             # TODO: Fix names
+            # FIXME: End function
             # Make value count over metadata and get dataframe of the number of samples in every batch
             batch_samples_df = pd.DataFrame(self.metadata_df['Batch'].value_counts(), columns = ['Batch', 'samples'])
 
