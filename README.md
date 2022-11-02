@@ -8,6 +8,18 @@ Create a virtual environment
 conda create -n trac
 conda activate trac
 ```
+Download [STRING](https://string-db.org/cgi/download?sessionId=b74QbpZboXzM&species_text=Homo+sapiens) data
+
+```bash
+mkdir data
+cd data
+mkdir string
+cd string
+wget https://stringdb-static.org/download/protein.links.detailed.v11.5/9606.protein.links.detailed.v11.5.txt.gz
+gzip -d 9606.protein.links.detailed.v11.5.txt.gz
+cd ..
+cd ..
+```
 
 Install required dependencies
 
