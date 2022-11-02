@@ -62,8 +62,9 @@ class ShokhirevDataset:
         self.batch_normalized_dict = self.batch_normalize()                         # Normalize by batches if specified. If self.batch_norm == False then this function returns self.exp_frac_filtered_dict.
         self.split_dict = self.split_data()                                         # Split and shuffle data
         self.edge_indices, self.edge_attributes = self.get_graph()                  # Compute graph. It will be a co-expression graph or a STRING graph depending on self.string
-        # Make dataloader function
 
+        # Define useful attributes for input
+        self.num_valid_genes = len(self.split_dict['valid_genes']) 
 
 
     def check_parameters_validity(self):
@@ -664,6 +665,7 @@ class ShokhirevDataset:
         return edge_indexes, edge_attributes
 
     def get_dataloaders(self, batch_size=100):
+        # TODO: Write documentation
 
         # Define partitions and tensor keys
         partitions = ['train', 'val', 'test']
