@@ -8,6 +8,39 @@ import pandas as pd
 from AutoPGD.auto_pgd import apgd
 from tqdm import tqdm
 import matplotlib.colors as colors
+import argparse
+
+def get_main_parser():
+
+    parser = argparse.ArgumentParser(description='Code for TrAC-GCN implementation.')
+    # Dataset parameters ##################################################################################
+    parser.add_argument('--norm',           type=str,   default="tpm",       help='The normalization method to be loaded via files. Can be raw, tpm or tmm.')
+    parser.add_argument('--log2',           type=str,   default='True',      help='Parameter indicating if a log2 transformation is done under input data.')
+    parser.add_argument('--ComBat',         type=str,   default='False',     help='Parameter indicating if a dataset with ComBat batch correction is loaded. Can be True just if log2 = True.')
+    parser.add_argument('--ComBat_seq',     type=str,   default='True',      help= 'Parameter indicating if a dataset with ComBat_seq batch correction is loaded.')
+    parser.add_argument('--filter_type',    type=str,   default='none',      help = 'filtering to be applied to genes, can be none, 1000var, 1000diff, 100var or 100diff')
+    # Graph parameters ###################################################################################
+    parser.add_argument('--string',         type=str,   default='False',     help='Parameter indicating if the graph made using STRING database.')
+    parser.add_argument('--all_string',     type=str,   default='False',     help='Parameter indicating if all STRING channels should be used otherwise combined_score will be used.')
+    parser.add_argument('--conf_thr',       type=float, default=0.7,         help='The confidence threshold to stablish connections in STRING graphs.')
+    parser.add_argument('--corr_thr',       type=float, default=0.8,         help='The correlation threshold to be used for definning graph connectivity.')
+    # Model parameters ###################################################################################
+    parser.add_argument('--model',          type=str,   default='baseline',  help='The model to be used.', choices= ['baseline', 'deepergcn', 'MLR', 'MLP', 'holzscheck_MLP', 'wang_MLP', 'baseline_pool', 'graph_head', 'trac_gcn', 'DFS'] )
+    parser.add_argument('--hidden_chann',   type=int,   default=8,           help='The number of hidden channels to use in the graph based models.')
+    parser.add_argument('--dropout',        type=float, default=0.0,         help='Dropout rate to be used in models.')
+    parser.add_argument('--final_pool',     type=str,   default='none',      help='Final pooling type over nodes to be used in graph based models.', choices= ['mean', 'max', 'add', 'none'])
+    # Training parameters ################################################################################
+    parser.add_argument('--exp_name',       type=str,   default='misc_test', help='Experiment name to be used for saving files. Default is misc_test. If set to -1 the name will be generated automatically.')
+    parser.add_argument('--loss',           type=str,   default='mse',       help='Loss function to be used for training. Can be mse or l1.')
+    parser.add_argument('--lr',             type=float, default=0.0005,      help='Learning rate for training.')
+    parser.add_argument('--epochs',         type=int,   default=100,         help='Number of epochs for training.')
+    parser.add_argument('--batch_size',     type=int,   default=20,          help='Batch size for training.')
+    parser.add_argument('--adv_e_test',     type=float, default=0.00,        help='Adversarial upper bound of perturbations during test.')
+    parser.add_argument('--adv_e_train',    type=float, default=0.00,        help='Adversarial upper bound of perturbations during train.')
+    parser.add_argument('--n_iters_apgd',   type=int,   default=50,          help='Number of iterations for APGD during train.')
+    
+    return parser
+
 
 def train(train_loader, model, device, criterion, optimizer, adversarial=False, attack=None, **kwargs):
     """
