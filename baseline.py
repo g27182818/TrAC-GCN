@@ -89,7 +89,7 @@ best_perf = aml.leader.model_performance(expression_age_h2o_val)
 
 ###################################################################################################
 __console__=sys.stdout
-f = open(log_path, 'w')
+f = open(log_path, 'a')
 sys.stdout = f
 
 # Print leader-board

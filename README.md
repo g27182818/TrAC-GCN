@@ -35,3 +35,11 @@ pip install matplotlib
 pip install seaborn
 pip install networkx
 ```
+
+
+To run the main results:
+
+```bash
+bash bash experiment_scripts/one_exp.sh
+```
+
