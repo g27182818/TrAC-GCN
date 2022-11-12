@@ -23,7 +23,7 @@ np.random.seed(1234)
 
 class ShokhirevDataset:
     def __init__(self, path,  norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05,
-                filter_type = 'none', ComBat = False, ComBat_seq = False, batch_sample_thr = 10, exp_frac_thr = 0.1, 
+                filter_type = 'None', ComBat = False, ComBat_seq = False, batch_sample_thr = 10, exp_frac_thr = 0.1, 
                 batch_norm = True, string = False, conf_thr = 0.0, channels_string = ['combined_score'], force_compute=False,
                 shuffle_seed = 0):
 
@@ -132,7 +132,7 @@ class ShokhirevDataset:
                                 '100var':'100 Variable Gene',
                                 '100diff':'100 Differential Gene'}
 
-        if self.filter_type == 'none':
+        if self.filter_type == 'None':
             print('Gene filtering based in differential or most variant genes NOT performed...')
             # Obtain complete gene list
             gene_names = expression.columns.tolist()

@@ -12,7 +12,7 @@ from torch.nn import Parameter
 
 
 class BaselineModel(torch.nn.Module):
-    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='None'):
         """
         Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
         :param hidden_channels: (Int) Hidden channels in every layer.
@@ -27,7 +27,7 @@ class BaselineModel(torch.nn.Module):
         self.out_size = out_size
         self.dropout = dropout
         self.final_pool = final_pool
-        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'None' else self.input_size
         # Convolution definitions
         self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
@@ -51,7 +51,7 @@ class BaselineModel(torch.nn.Module):
         x = x.relu()
         x = self.conv2(x, edge_index)
         x = x.relu()
-        if self.final_pool == 'none':
+        if self.final_pool == 'None':
             pass
         elif self.final_pool == 'mean':
             # Get mean from each node
@@ -71,7 +71,7 @@ class BaselineModel(torch.nn.Module):
         return x
 
 class TracGCN(torch.nn.Module):
-    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='None'):
         """
         Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
         :param hidden_channels: (Int) Hidden channels in every layer.
@@ -86,7 +86,7 @@ class TracGCN(torch.nn.Module):
         self.out_size = out_size
         self.dropout = dropout
         self.final_pool = final_pool
-        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'None' else self.input_size
         # Convolution definitions
         self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
@@ -118,7 +118,7 @@ class TracGCN(torch.nn.Module):
         x = x.relu()
         x = self.conv2(x, edge_index)
         x = x.relu()
-        if self.final_pool == 'none':
+        if self.final_pool == 'None':
             pass
         elif self.final_pool == 'mean':
             # Get mean from each node
@@ -152,7 +152,7 @@ class TracGCN(torch.nn.Module):
         return x
 
 class GraphHead(torch.nn.Module):
-    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none'):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='None'):
         """
         Class constructor for baseline using ChebConv, Inherits from torch.nn.Module
         :param hidden_channels: (Int) Hidden channels in every layer.
@@ -167,7 +167,7 @@ class GraphHead(torch.nn.Module):
         self.out_size = out_size
         self.dropout = dropout
         self.final_pool = final_pool
-        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'None' else self.input_size
         # Convolution definitions
         self.conv1 = ChebConv(1, hidden_channels, K=5)
         self.conv2 = ChebConv(hidden_channels, hidden_channels, K=5)
@@ -191,7 +191,7 @@ class GraphHead(torch.nn.Module):
         x = x.relu()
         x = self.conv2(x, edge_index)
         x = x.relu()
-        if self.final_pool == 'none':
+        if self.final_pool == 'None':
             pass
         elif self.final_pool == 'mean':
             # Get mean from each node
@@ -216,7 +216,7 @@ class GraphHead(torch.nn.Module):
 
 
 class BaselineModelPool(torch.nn.Module):
-    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='none', cluster_num=1014):
+    def __init__(self, hidden_channels, input_size, out_size, dropout=0.5, final_pool='None', cluster_num=1014):
 
         super(BaselineModelPool, self).__init__()
         # Class atributes
@@ -226,7 +226,7 @@ class BaselineModelPool(torch.nn.Module):
         self.dropout = dropout
         self.final_pool = final_pool
         self.cluster_num = cluster_num
-        self.lin_input_size = self.cluster_num * self.hidd if final_pool == 'none' else self.cluster_num
+        self.lin_input_size = self.cluster_num * self.hidd if final_pool == 'None' else self.cluster_num
         # Convolution definitions
         self.conv1_embed = DenseGCNConv(1, hidden_channels, improved=True)
         self.conv1_pool = DenseGCNConv(1, self.cluster_num, improved=True)
@@ -251,7 +251,7 @@ class BaselineModelPool(torch.nn.Module):
         # Flatten second and third dimension
         x = torch.reshape(x, (x.shape[0], -1))
         
-        if self.final_pool == 'none':
+        if self.final_pool == 'None':
             pass
         elif self.final_pool == 'mean':
             # Get mean from each node
@@ -273,7 +273,7 @@ class BaselineModelPool(torch.nn.Module):
 
 
 class DeeperGCN(torch.nn.Module):
-    def __init__(self, hidden_channels, num_layers, input_size, input_node_channels=1, input_edge_channels=1, out_size=1, dropout=0.3, final_pool='none'):
+    def __init__(self, hidden_channels, num_layers, input_size, input_node_channels=1, input_edge_channels=1, out_size=1, dropout=0.3, final_pool='None'):
         super().__init__()
 
         self.input_size = input_size
@@ -282,7 +282,7 @@ class DeeperGCN(torch.nn.Module):
         self.edge_encoder = Linear(input_edge_channels, hidden_channels)
         self.dropout = dropout
         self.final_pool = final_pool
-        self.lin_input_size = self.input_size * self.hidd if final_pool == 'none' else self.input_size
+        self.lin_input_size = self.input_size * self.hidd if final_pool == 'None' else self.input_size
         self.out_size = out_size
 
         self.layers = torch.nn.ModuleList()
@@ -321,7 +321,7 @@ class DeeperGCN(torch.nn.Module):
 
         x = self.layers[0].act(self.layers[0].norm(x))
 
-        if self.final_pool == 'none':
+        if self.final_pool == 'None':
             pass
         elif self.final_pool == 'mean':
             x = x.mean(dim=1)
@@ -393,7 +393,7 @@ class MLP(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, batch):
         """
-        Performs a forward pass of the MLP model. To provide coherence in the training and etsting, this function asks
+        Performs a forward pass of the MLP model. To provide coherence in the training and testing, this function asks
         for edge indices. However, this parameter is ignored.
         :param x: (torch.Tensor) Input features of each node.
         :param edge_index: (torch.Tensor) Edges indicating graph connectivity. This parameter is ignored.

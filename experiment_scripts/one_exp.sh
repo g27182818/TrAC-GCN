@@ -8,7 +8,7 @@ NORM=tpm
 LOG2=True
 COMBAT=False
 COMBAT_SEQ=True
-FILTER_TYPE=none
+FILTER_TYPE=None
 BATCH_SAMPLE_THR=100
 EXP_FRAC_THR=0.5
 BATCH_NORM=True
@@ -24,7 +24,7 @@ P_THR=0.05
 MODEL=trac_gcn
 HIDDEN_CHANN=8
 DROPOUT=0.5
-FINAL_POOL=none
+FINAL_POOL=None
 # Training parameters #####################################
 EXP_NAME=misc_test
 LOSS=mse

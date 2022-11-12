@@ -50,7 +50,7 @@ if args.exp_name == '-1':
     elif args.ComBat_seq == 'True':
         batch_str = '_batch_corr_ComBat_seq_'
     else:
-        batch_str = '_batch_corr_none_'
+        batch_str = '_batch_corr_None_'
     # Define experiment name based on parameters
     args.exp_name = args.norm + batch_str + "_" + args.filter_type + "_filtering_coor_thr=" + str(args.corr_thr)
 
