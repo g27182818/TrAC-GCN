@@ -6,6 +6,8 @@
         "edgelist",
         "holzscheck",
         "leaderboard",
+        "linf",
+        "pgbar",
         "shokhirev",
         "spearmanr",
         "Trac"

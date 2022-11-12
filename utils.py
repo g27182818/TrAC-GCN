@@ -1,7 +1,6 @@
 import sklearn.metrics
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import torch
 import pandas as pd
 from AutoPGD.auto_pgd import apgd
@@ -19,8 +18,7 @@ def get_main_parser():
     # Dataset parameters #####################################################################################################################################################################
     parser.add_argument('--norm',               type=str,       default="tpm",          help='The normalization method to be loaded via files.',                                                            choices=['raw', 'tpm', 'tmm'])
     parser.add_argument('--log2',               type=str,       default='True',         help='Parameter indicating if a log2 transformation is done under input data.',                                     choices=['True', 'False'])
-    parser.add_argument('--ComBat',             type=str,       default='False',        help='Parameter indicating if a dataset with ComBat batch correction is loaded. Can be True just if log2 = True.' , choices=['True', 'False'])
-    parser.add_argument('--ComBat_seq',         type=str,       default='True',         help='Parameter indicating if a dataset with ComBat_seq batch correction is loaded.',                               choices=['True', 'False'])
+    parser.add_argument('--batch_corr',         type=str,       default='None',         help='Parameter indicating the batch correction method to be used.',                                                choices=['None', 'combat', 'combat_seq'])
     parser.add_argument('--filter_type',        type=str,       default='None',         help='Filtering to be applied to genes specified by string',                                                        choices= ['None', '1000var', '1000diff', '100var', '100diff'])
     parser.add_argument('--val_frac',           type=float,     default=0.2,            help='The fraction of all samples in the validation group. Must be in the range (0, 1).')
     parser.add_argument('--test_frac',          type=float,     default=0.2,            help='The fraction of all samples in the test group. Must be in the range (0, 1).')
@@ -240,8 +238,6 @@ def pgd_linf(model, X, y, edge_index, edge_attributes, batch, criterion, epsilon
         delta.grad.zero_()
     return delta.detach()
 
-
-
 # TODO: Adapt this kind of attack to work with a regression problem
 def apgd_graph(model, x, y, edge_index, edge_attributes, batch, criterion, epsilon=0.01, **kwargs):
     """
@@ -325,7 +321,6 @@ def plot_training(train_list, val_list, adversarial_val_list, loss, save_path):
     plt.tight_layout()
     plt.savefig(save_path, dpi=200)
 
-
 def plot_predictions(model, device, val_loader, save_path):
     """
     This funtion plots the predictions of the model over the val set.
@@ -367,9 +362,6 @@ def plot_predictions(model, device, val_loader, save_path):
     plt.title("Model predictions", fontsize=20)
     plt.tight_layout()
     plt.savefig(save_path, dpi=200)
-
-
-
 
 def print_epoch(train_dict, val_dict, adv_val_dict, loss, epoch, path):
     # TODO: Update docstring of print_epoch() function
@@ -416,8 +408,6 @@ def print_epoch(train_dict, val_dict, adv_val_dict, loss, epoch, path):
         print(data_frame)
         print(data_frame, file=f)
         print_both('                                         ',f)
-
-
 
 def read_csv_pgbar(csv_path, chunksize, usecols, dtype=object):
     # print('Getting row count of csv file')

@@ -23,7 +23,7 @@ np.random.seed(1234)
 
 class ShokhirevDataset:
     def __init__(self, path,  norm, log2, val_frac = 0.2, test_frac = 0.2, corr_thr=0.6, p_thr=0.05,
-                filter_type = 'None', ComBat = False, ComBat_seq = False, batch_sample_thr = 10, exp_frac_thr = 0.1, 
+                filter_type = 'None', batch_corr = 'None', batch_sample_thr = 10, exp_frac_thr = 0.1, 
                 batch_norm = True, string = False, conf_thr = 0.0, channels_string = ['combined_score'], force_compute=False,
                 shuffle_seed = 0):
 
@@ -36,8 +36,7 @@ class ShokhirevDataset:
         self.corr_thr = corr_thr
         self.p_thr = p_thr
         self.filter_type = filter_type
-        self.ComBat = ComBat
-        self.ComBat_seq = ComBat_seq
+        self.batch_corr = batch_corr
         self.batch_sample_thr = batch_sample_thr
         self.exp_frac_thr = exp_frac_thr
         self.batch_norm = batch_norm
@@ -62,7 +61,6 @@ class ShokhirevDataset:
         self.batch_normalized_dict = self.batch_normalize()                         # Normalize by batches if specified. If self.batch_norm == False then this function returns self.exp_frac_filtered_dict.
         self.split_dict = self.split_data()                                         # Split and shuffle data
         self.edge_indices, self.edge_attributes = self.get_graph()                  # Compute graph. It will be a co-expression graph or a STRING graph depending on self.string
-
         # Define useful attributes for input
         self.num_valid_genes = len(self.split_dict['valid_genes']) 
 
@@ -77,10 +75,7 @@ class ShokhirevDataset:
         """
         print('Checking parameters...')
 
-        if self.ComBat and self.ComBat_seq:
-            raise ValueError('ComBat and ComBat_seq cannot be both True')
-
-        if self.ComBat and (not self.log2):
+        if (self.batch_corr=='combat') and (not self.log2):
             raise ValueError('ComBat requires log2 transform because it was computed over log2(x+1) data')
 
         print('All dataset parameters are valid :)')
@@ -92,9 +87,9 @@ class ShokhirevDataset:
         Returns:
             str: Dataset file name
         """
-        if self.ComBat:
+        if self.batch_corr=='combat':
             return self.norm+'_dataset_log2_combat.csv'
-        elif self.ComBat_seq:
+        elif self.batch_corr=='combat_seq':
             return self.norm+'_dataset_combat_seq.csv'
         else:
             return self.norm+'_dataset.csv'
@@ -150,7 +145,7 @@ class ShokhirevDataset:
         print('Performing log2 transformation...')
         # Handle possible log2 transformation. In case ComBat is True, the expression matrix is already log2
         # transformed from the loaded file.
-        if self.log2 and (not self.ComBat):
+        if self.log2 and (self.batch_corr!='combat'):
             # Perform the log2 transform of data
             expression = np.log2(expression + 1)
 
@@ -328,6 +323,7 @@ class ShokhirevDataset:
 
         return exp_frac_filtered_dict
 
+    # FIXME: When using combat NaNs are generated!!! and models don't train
     def batch_normalize(self):
         """
         This function uses all the previous results to perform a batch z score normalization over the valid gene expression matrix.
@@ -475,7 +471,7 @@ class ShokhirevDataset:
         # TODO: Write documentation
 
         # Define save dir, graph and info names
-        dir = os.path.join('graphs', 'shokhirev', self.norm, f'log2={self.log2}', f'ComBat={self.ComBat}_ComBat_seq={self.ComBat_seq}', 'filter_type='+self.filter_type,
+        dir = os.path.join('graphs', 'shokhirev', self.norm, f'log2={self.log2}', f'batch_corr={self.batch_corr}', 'filter_type='+self.filter_type,
                             f'batch_norm={self.batch_norm}_batch_sample_thr={self.batch_sample_thr}', f'exp_frac_thr={self.exp_frac_thr}')
         name_graph = os.path.join(dir, f'graph_corr_thr_{self.corr_thr}_p_thr_{self.p_thr}.pkl')
         name_info = os.path.join(dir, f'graph_info_corr_thr_{self.corr_thr}_p_thr_{self.p_thr}.txt')

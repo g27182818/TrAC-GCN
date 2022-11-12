@@ -44,15 +44,8 @@ channels_string = str_all_channels if args.all_string == 'True' else ['combined_
 
 # Handle automatic generation of experiment name
 if args.exp_name == '-1':
-    # Handle different batch correction methods
-    if args.ComBat == 'True':
-        batch_str = '_batch_corr_ComBat_'
-    elif args.ComBat_seq == 'True':
-        batch_str = '_batch_corr_ComBat_seq_'
-    else:
-        batch_str = '_batch_corr_None_'
-    # Define experiment name based on parameters
-    args.exp_name = args.norm + batch_str + "_" + args.filter_type + "_filtering_coor_thr=" + str(args.corr_thr)
+    # Define experiment name based on some parameters
+    args.exp_name = f'{args.norm}_batch_corr_{args.batch_corr}_filter_{args.filter_type}_corr_thr{args.corr_thr}'
 
 # TODO: Change the result saving pipeline to a file tree
 # Declare results path
@@ -82,10 +75,10 @@ with open(train_log_path, 'a') as f:
 # Load data
 dataset = ShokhirevDataset( path = os.path.join("data","Shokhirev_2020"),   norm = args.norm,                           log2 = args.log2 == 'True',
                             val_frac = args.val_frac,                       test_frac = args.test_frac,                 corr_thr = args.corr_thr,
-                            p_thr = args.p_thr,                             filter_type = args.filter_type,             ComBat = args.ComBat == 'True',
-                            ComBat_seq = args.ComBat_seq == 'True',         batch_sample_thr = args.batch_sample_thr,   exp_frac_thr = args.exp_frac_thr, 
-                            batch_norm = args.batch_norm == 'True',         string = args.string == 'True',             conf_thr = args.conf_thr,
-                            channels_string = channels_string,              shuffle_seed = args.shuffle_seed,           force_compute = args.force_compute == 'True')
+                            p_thr = args.p_thr,                             filter_type = args.filter_type,             batch_corr = args.batch_corr,
+                            batch_sample_thr = args.batch_sample_thr,       exp_frac_thr = args.exp_frac_thr,           batch_norm = args.batch_norm == 'True',
+                            string = args.string == 'True',                 conf_thr = args.conf_thr,                   channels_string = channels_string,
+                            shuffle_seed = args.shuffle_seed,               force_compute = args.force_compute == 'True')
 
 train_loader, val_loader, test_loader = dataset.get_dataloaders(batch_size = args.batch_size)
 n_genes = dataset.num_valid_genes
