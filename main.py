@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 np.random.seed(1234)
 
-# # Add optional timmer to delay the execution of the code
+# # Add optional timer to delay the execution of the code
 # import time
 # time.sleep(6000)
 
@@ -80,12 +80,12 @@ with open(train_log_path, 'a') as f:
     print_both('\n\n',f)
 
 # Load data
-dataset = ShokhirevDataset( path = os.path.join("data","Shokhirev_2020"),   norm = args.norm,                   log2 = args.log2 == 'True',
-                            val_frac = args.val_frac,                       test_frac = args.test_frac,          corr_thr = args.corr_thr,
-                            p_thr = args.p_thr,                             filter_type = args.filter_type,     ComBat = args.ComBat == 'True',
-                            ComBat_seq = args.ComBat_seq == 'True',         batch_sample_thr = 100,             exp_frac_thr = 0.5, 
-                            batch_norm=False,                               string = args.string == 'True',     conf_thr = args.conf_thr,
-                            channels_string = channels_string,              shuffle_seed=0,                     force_compute=False)
+dataset = ShokhirevDataset( path = os.path.join("data","Shokhirev_2020"),   norm = args.norm,                           log2 = args.log2 == 'True',
+                            val_frac = args.val_frac,                       test_frac = args.test_frac,                 corr_thr = args.corr_thr,
+                            p_thr = args.p_thr,                             filter_type = args.filter_type,             ComBat = args.ComBat == 'True',
+                            ComBat_seq = args.ComBat_seq == 'True',         batch_sample_thr = args.batch_sample_thr,   exp_frac_thr = args.exp_frac_thr, 
+                            batch_norm = args.batch_norm == 'True',         string = args.string == 'True',             conf_thr = args.conf_thr,
+                            channels_string = channels_string,              shuffle_seed = args.shuffle_seed,           force_compute = args.force_compute == 'True')
 
 train_loader, val_loader, test_loader = dataset.get_dataloaders(batch_size = args.batch_size)
 n_genes = dataset.num_valid_genes
