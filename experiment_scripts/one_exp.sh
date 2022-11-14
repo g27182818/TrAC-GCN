@@ -25,11 +25,11 @@ HIDDEN_CHANN=8
 DROPOUT=0.5
 FINAL_POOL=None
 # Training parameters #####################################
-EXP_NAME=misc_test
+EXP_NAME=combat_batch_200
 LOSS=mse
 LR=0.00005
 EPOCHS=100
-BATCH_SIZE=10
+BATCH_SIZE=200
 ADV_E_TEST=0.0
 ADV_E_TRAIN=0.0
 N_ITERS_APGD=50

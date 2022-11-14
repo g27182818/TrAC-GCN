@@ -170,7 +170,7 @@ class ShokhirevDataset:
     def compute_statistics(self):
         """
         This function computes or loads dataframes with various statistics of the complete dataset: Mean, standard deviation,
-        fraction of samples expressiong a gene and the number of samples in a given batch. It is important to note that all the
+        fraction of samples expression a gene and the number of samples in a given batch. It is important to note that all the
         statistics are computed in every batch of the data
 
         Returns:
@@ -200,10 +200,9 @@ class ShokhirevDataset:
         # If it does not exist then compute it and save it 
         else:
             print(f'Computing statistics and saving them in {statistics_path}')
+
             # Make directory
             os.makedirs(statistics_path, exist_ok=True)
-            # Compute the minimum value in x_np for the expression fraction computation 
-            min_exp = np.min(self.x_np)
             # Get unique batch list in metadata
             unique_batches = self.metadata_df['Batch'].unique()
             # Declare statistic dataframes (mean, std, expression_frac) full of nans
@@ -211,17 +210,25 @@ class ShokhirevDataset:
             std_df = pd.DataFrame(index = self.gene_names, columns = unique_batches)
             exp_frac_df = pd.DataFrame(index = self.gene_names, columns = unique_batches)
 
+            # Reading raw counts to compute exp_frac in general way
+            raw_counts = pd.read_csv(os.path.join(self.path, 'normalized', 'raw_dataset.csv'), sep=",", header=0)
+            raw_counts.rename(columns = {'Unnamed: 0':'SRR.ID'}, inplace=True)
+            raw_counts.set_index('SRR.ID', inplace=True)
+            raw_counts = raw_counts.T
+            raw_counts = raw_counts[self.gene_names]
+
             # Cycle over batches
             for batch in unique_batches:
                 # Get batch expression matrix
                 batch_sample_indexes = self.metadata_df['Batch'] == batch
                 batch_expression = self.x_np[batch_sample_indexes, :]
+                batch_expression_counts = raw_counts.loc[batch_sample_indexes, :]
                 # get the mean and add it to dataframe
                 mean_df[batch] = batch_expression.mean(axis=0)
                 # Get std and add it to dataframe
                 std_df[batch] = batch_expression.std(axis=0)
                 # Get expression frac and add  to dataframes
-                exp_frac_df[batch] = (batch_expression > min_exp).sum(axis=0) / batch_expression.shape[0]
+                exp_frac_df[batch] = (batch_expression_counts > 0).sum(axis=0) / batch_expression.shape[0]
 
             # Make value count over metadata and get dataframe of the number of samples in every batch
             batch_samples_df = pd.DataFrame(self.metadata_df['Batch'].value_counts())
@@ -323,7 +330,6 @@ class ShokhirevDataset:
 
         return exp_frac_filtered_dict
 
-    # FIXME: When using combat NaNs are generated!!! and models don't train
     def batch_normalize(self):
         """
         This function uses all the previous results to perform a batch z score normalization over the valid gene expression matrix.
