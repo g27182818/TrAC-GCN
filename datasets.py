@@ -185,7 +185,7 @@ class ShokhirevDataset:
 
         # Get the name of the directory containing the csv files
         statistics_path = os.path.join(self.path, 'normalized', 'statistics', 
-                                        self.dataset_filename.split('.')[0])
+                                        f'log2_{str(self.log2)}_batch_corr_{self.batch_corr}_{self.norm}')
 
         # If statistic csvs exist load them
         if os.path.exists(statistics_path) and (self.force_compute == False):
@@ -436,6 +436,7 @@ class ShokhirevDataset:
         np.random.seed(self.shuffle_seed)
         shuffler = np.random.permutation(len(x))
         
+        # FIXME: I think that using the stratify function is highly needed here
         # Get shuffled versions of x, y, and metadata
         x_shuffled = x[shuffler, :]
         y_shuffled = y[shuffler]

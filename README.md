@@ -34,6 +34,7 @@ pip install h2o
 pip install matplotlib
 pip install seaborn
 pip install networkx
+pip install umap-learn
 ```
 
 

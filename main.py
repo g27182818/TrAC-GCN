@@ -6,10 +6,6 @@ from utils import *
 import numpy as np
 import os
 import pickle
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
-import argparse
-import glob
 # Set matplotlib option to plot while in screen
 import matplotlib
 matplotlib.use('Agg')
@@ -32,9 +28,7 @@ args_dict = vars(args)
 torch.manual_seed(12345)                                             # Set torch manual seed                                                              #
 device = torch.device("cuda")                                        # Set cuda device                                                                    #
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------#
-# ComBat = args.ComBat == 'True'                                       # Whether to load ComBat batch corrected dataset.                                    # # TODO: Make single parameter
-# ComBat_seq = args.ComBat_seq == 'True'                               # Whether to load ComBat_seq batch corrected dataset                                 #
-# all_string = args.all_string == 'True'                               # Whether to use all STRING channels or just combined_score                          # # TODO: Add the possibility to add specific string channels
+# all_string = args.all_string == 'True'                             # Whether to use all STRING channels or just combined_score                          # # TODO: Add the possibility to add specific string channels
 # ----------------------------------------------------------------------------------------------------------------------------------------------------------#
 
 
@@ -45,9 +39,9 @@ channels_string = str_all_channels if args.all_string == 'True' else ['combined_
 # Handle automatic generation of experiment name
 if args.exp_name == '-1':
     # Define experiment name based on some parameters
-    args.exp_name = f'{args.norm}_batch_corr_{args.batch_corr}_filter_{args.filter_type}_corr_thr{args.corr_thr}'
+    args.exp_name = f'log2_{args.log2}_batch_corr_{args.batch_corr}_{args.norm}'
 
-# TODO: Change the result saving pipeline to a file tree
+# TODO: Make single function that returns all needed paths
 # Declare results path
 results_path = os.path.join("Results", args.exp_name)
 # Declare log path
@@ -62,8 +56,7 @@ val_prediction_fig_path = os.path.join(results_path, "val_prediction.png")
 best_model_path = os.path.join(results_path, "best_model.pt")
 
 # Create results directory
-if not os.path.isdir(results_path):
-    os.makedirs(results_path)
+os.makedirs(results_path, exist_ok=True)
 
 # Print experiment parameters
 with open(train_log_path, 'a') as f:

@@ -1,0 +1,32 @@
+Argument list to program
+--norm raw
+--log2 True
+--batch_corr combat_seq
+--filter_type None
+--val_frac 0.2
+--test_frac 0.2
+--batch_sample_thr 100
+--exp_frac_thr 0.5
+--batch_norm True
+--shuffle_seed 0
+--force_compute False
+--string True
+--all_string False
+--conf_thr 0.9
+--corr_thr 0.81
+--p_thr 0.05
+--model MLR
+--hidden_chann 8
+--dropout 0.5
+--final_pool None
+--exp_name log2_True_batch_corr_combat_seq_raw
+--loss mse
+--lr 5e-05
+--epochs 100
+--batch_size 200
+--adv_e_test 0.0
+--adv_e_train 0.0
+--n_iters_apgd 50
+
+
+

@@ -20,12 +20,12 @@ CONF_THR=0.9
 CORR_THR=0.81
 P_THR=0.05
 # Model parameters ########################################
-MODEL=trac_gcn
+MODEL=holzscheck_MLP
 HIDDEN_CHANN=8
 DROPOUT=0.5
 FINAL_POOL=None
 # Training parameters #####################################
-EXP_NAME=combat_batch_200
+EXP_NAME=holzscheck_MLP_combat_batch_200
 LOSS=mse
 LR=0.00005
 EPOCHS=100
